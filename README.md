@@ -49,7 +49,7 @@ npm run preview
    - Root directory: `/`
 4. Deploy. No environment variables are required for Phase 0.
 
-The included `public/_redirects` file preserves client-side routes on Cloudflare Pages. The included `wrangler.jsonc` also supports a later `npx wrangler deploy` static-assets workflow.
+The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serves `index.html` for client-side routes through `not_found_handling: "single-page-application"`.
 
 ## Product boundaries
 
