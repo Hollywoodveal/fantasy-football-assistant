@@ -98,4 +98,4 @@ npm run lint         # ESLint validation
 npm run deploy       # Deploy to Cloudflare (requires wrangler auth)
 ```
 
-Deployed at: [Cloudflare Pages URL will be added after deployment]
+**Live deployment:** https://fantasy-football-assistant.daiyveal.workers.dev
