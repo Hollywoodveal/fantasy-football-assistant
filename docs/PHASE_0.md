@@ -58,13 +58,44 @@ Future recommendations will rank only players available in the user's league and
 
 ## Data integration boundary
 
-The first ESPN-compatible release should use user-supplied roster information through structured selection, paste, or screenshot recognition. It must not request an ESPN password or private cookies. Automatic ESPN integration will be introduced only through an authorized route.
+The first ESPN-compatible release should use user-supplied roster information through structured selection, paste, or screenshot recognition. It must not request an ESPN password or private cookie. All sample data used in Phase 0 is representative but not live — users will see a clear disclaimer that the app does not yet read from their actual ESPN league.
+
+## Accessibility & mobile support
+
+- All interactive elements keyboard-accessible with visible focus states (lime outline).
+- Reduced-motion support via `prefers-reduced-motion` media query.
+- ARIA labels on icons, semantic HTML, and screen reader optimizations.
+- Touch-friendly sizing (minimum 48px tap targets on mobile).
+- Responsive typography and layout (mobile-first, scales to desktop 1320px).
+- PWA installable on iOS and Android with app-like navigation and offline shell.
 
 ## Exit criteria
 
-- Production build succeeds.
-- TypeScript and lint checks succeed.
-- PWA manifest, service worker, and install icons are emitted.
-- Mobile and desktop layouts match the accepted visual direction.
-- Core local interactions work by keyboard and pointer.
-- The GitHub repository imports into Cloudflare with `npm run build` and output directory `dist`.
+- ✅ Production build succeeds.
+- ✅ TypeScript and lint checks succeed.
+- ✅ PWA manifest, service worker, and install icons are emitted.
+- ✅ Mobile and desktop layouts match the accepted visual direction.
+- ✅ Core local interactions work by keyboard and pointer.
+- ✅ The GitHub repository imports into Cloudflare with `npm run build` and output directory `dist`.
+
+## Next phases
+
+**Phase 1** will add ESPN integration to accept user rosters (via league ID, paste, or screenshot).
+
+**Phase 2** will select and integrate a live data provider (player projections, injury reports, bye weeks).
+
+**Phase 3** will implement the recommendation engine with league-aware, user-personalized scoring logic.
+
+## Running Phase 0
+
+```bash
+npm install
+npm run dev          # Local dev with Vite HMR
+npm run build        # Production bundle
+npm run preview      # Test production build locally
+npm run typecheck    # TypeScript validation
+npm run lint         # ESLint validation
+npm run deploy       # Deploy to Cloudflare (requires wrangler auth)
+```
+
+Deployed at: [Cloudflare Pages URL will be added after deployment]
