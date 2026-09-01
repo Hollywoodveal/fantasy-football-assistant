@@ -13,27 +13,112 @@ import {
   UserRound,
   X,
   Zap,
+  WifiOff,
+  AlertCircle,
+  Moon,
+  Sun,
 } from 'lucide-react'
 import { Brand } from './components/Brand'
 import { BottomNavigation, SideNavigation, type NavKey } from './components/Navigation'
 import { lineupMoves, waiverTargets } from './data/demo'
 
-type DialogView = 'lineup' | 'waivers' | 'draft' | 'more' | null
+type DialogView = 'lineup' | 'waivers' | 'draft' | 'more' | 'help' | null
+type Theme = 'dark' | 'light'
 
 function App() {
-  const [week, setWeek] = useState('Week 1')
+  const [week, setWeek] = useState(() => localStorage.getItem('selectedWeek') || 'Week 1')
   const [activeNav, setActiveNav] = useState<NavKey>('home')
   const [dialog, setDialog] = useState<DialogView>(null)
-  const [optimized, setOptimized] = useState(false)
+  const [optimized, setOptimized] = useState(() => localStorage.getItem('lineupOptimized') === 'true')
   const [toast, setToast] = useState('')
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = localStorage.getItem('theme') as Theme | null
+    return saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+  })
+  const [hasError, setHasError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const projectedTotal = optimized ? '137.2' : '124.8'
 
+  // Persist week selection
+  useEffect(() => {
+    localStorage.setItem('selectedWeek', week)
+  }, [week])
+
+  // Persist optimized state
+  useEffect(() => {
+    localStorage.setItem('lineupOptimized', String(optimized))
+  }, [optimized])
+
+  // Persist theme preference
+  useEffect(() => {
+    localStorage.setItem('theme', theme)
+    document.documentElement.style.colorScheme = theme
+  }, [theme])
+
+  // Handle online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  // Toast auto-dismiss
   useEffect(() => {
     if (!toast) return
     const timeout = window.setTimeout(() => setToast(''), 3200)
     return () => window.clearTimeout(timeout)
   }, [toast])
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Help dialog (?)
+      if (e.shiftKey && e.key === '?') {
+        e.preventDefault()
+        setDialog('help')
+        return
+      }
+
+      // Close dialog (Escape)
+      if (e.key === 'Escape' && dialog) {
+        setDialog(null)
+        return
+      }
+
+      // Navigation shortcuts (Alt+number)
+      if (e.altKey) {
+        const navMap: Record<string, NavKey> = {
+          '1': 'home',
+          '2': 'lineup',
+          '3': 'draft',
+          '4': 'waivers',
+          '5': 'more',
+        }
+        if (navMap[e.key]) {
+          e.preventDefault()
+          navigate(navMap[e.key])
+        }
+      }
+
+      // Optimize lineup (Ctrl+L)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+        e.preventDefault()
+        setDialog('lineup')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [dialog])
 
   const navigate = (key: NavKey) => {
     setActiveNav(key)
@@ -50,18 +135,35 @@ function App() {
   }
 
   const applyLineup = () => {
-    setOptimized(true)
-    setDialog(null)
-    setToast('Lineup preview optimized. ESPN was not changed.')
+    try {
+      setOptimized(true)
+      setDialog(null)
+      setToast('Lineup preview optimized. ESPN was not changed.')
+      setHasError(false)
+    } catch (error) {
+      setHasError(true)
+      setErrorMessage('Failed to apply lineup changes.')
+    }
+  }
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark')
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isOnline ? '' : ' offline'}${theme === 'light' ? ' light-mode' : ''}`}>
+      {!isOnline && (
+        <div className="offline-indicator" role="status">
+          <WifiOff aria-hidden="true" />
+          Offline — using cached data
+        </div>
+      )}
+
       <SideNavigation active={activeNav} onNavigate={navigate} />
 
       <main className="app-main">
         <header className="top-bar">
-          <div className="mobile-brand"><Brand /></div>
+          <div className="mobile-brand"><Brand compact /></div>
           <button className="league-select desktop-only" type="button" onClick={() => setDialog('more')}>
             Hollywood Veal <ChevronDown aria-hidden="true" />
           </button>
@@ -74,6 +176,14 @@ function App() {
             </select>
             <ChevronDown aria-hidden="true" />
           </label>
+          <button 
+            className="theme-toggle" 
+            type="button" 
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
           <button className="profile-button" type="button" onClick={() => setDialog('more')} aria-label="Open profile and settings">
             A<span aria-hidden="true" />
           </button>
@@ -103,6 +213,13 @@ function App() {
             </div>
           </section>
 
+          {hasError && (
+            <div className="error-message" role="alert">
+              <AlertCircle aria-hidden="true" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <div className="dashboard-grid">
             <section className="panel lineup-panel" id="lineup" aria-labelledby="lineup-title">
               <div className="panel__heading">
@@ -118,7 +235,7 @@ function App() {
               </div>
 
               <div className="lineup-list">
-                {lineupMoves.map((move) => (
+                {lineupMoves.slice(0, 3).map((move) => (
                   <div className="lineup-row" key={move.id}>
                     <span className="start-label">Start</span>
                     <span className="position-tag">{move.position}</span>
@@ -241,7 +358,7 @@ function App() {
                   <span><strong>2</strong> Choose draft strategy</span>
                   <span><strong>3</strong> Start the live assistant</span>
                 </div>
-                <button className="secondary-action dialog__full-action" type="button" onClick={() => { setDialog(null); setToast('Draft setup will open in the Draft Assistant phase.') }}>Start draft setup <ArrowRight aria-hidden="true" /></button>
+                <button className="secondary-action dialog__full-action" type="button" onClick={() => { setDialog(null); setToast('Draft setup will open in the Draft Assistant phase.') }}>Start draft assistant <ArrowRight aria-hidden="true" /></button>
               </>
             )}
 
@@ -255,6 +372,41 @@ function App() {
                   <button type="button">League settings <ChevronRight aria-hidden="true" /></button>
                   <button type="button">Recommendation preferences <ChevronRight aria-hidden="true" /></button>
                   <button type="button">Import ESPN roster <ChevronRight aria-hidden="true" /></button>
+                </div>
+              </>
+            )}
+
+            {dialog === 'help' && (
+              <>
+                <span className="dialog__icon dialog__icon--blue"><Target aria-hidden="true" /></span>
+                <p className="dialog__context">Keyboard shortcuts</p>
+                <h2 id="dialog-title">Navigate faster</h2>
+                <p className="dialog__intro">Use these shortcuts to quickly navigate the app.</p>
+                <div className="keyboard-help">
+                  <div className="help-row">
+                    <kbd>Alt + 1</kbd><span>Home</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Alt + 2</kbd><span>Lineup</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Alt + 3</kbd><span>Draft</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Alt + 4</kbd><span>Waivers</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Alt + 5</kbd><span>Settings</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Ctrl + L</kbd><span>Open lineup</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Esc</kbd><span>Close dialog</span>
+                  </div>
+                  <div className="help-row">
+                    <kbd>Shift + ?</kbd><span>Show this help</span>
+                  </div>
                 </div>
               </>
             )}
