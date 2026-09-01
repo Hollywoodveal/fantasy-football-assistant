@@ -45,25 +45,4 @@ lighthouse https://fantasy-football-assistant.daiyveal.workers.dev --output-path
 
 ## Monitoring
 
-After deployment, run Lighthouse weekly from CI/CD to track regressions:
-
-```yaml
-# Example GitHub Actions workflow
-name: Lighthouse
-on: [push]
-jobs:
-  lighthouse:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - run: npm run build
-      - run: npm install -g @lhci/cli@latest
-      - run: lhci autorun
-```
-
-## Phase 1 & Beyond
-
-As data fetching and dynamic content are added, monitor for:
-- Increased FID/INP due to data processing
-- Layout shifts from loading skeleton states
-- PWA install abandonment metrics
+After deployment, run Lighthouse weekly from CI/CD to track regressions.

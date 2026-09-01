@@ -109,7 +109,7 @@ function App() {
         }
       }
 
-      // Optimize lineup (Ctrl+L)
+      // Optimize lineup (Ctrl+L or Cmd+L)
       if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
         e.preventDefault()
         setDialog('lineup')
@@ -383,30 +383,14 @@ function App() {
                 <h2 id="dialog-title">Navigate faster</h2>
                 <p className="dialog__intro">Use these shortcuts to quickly navigate the app.</p>
                 <div className="keyboard-help">
-                  <div className="help-row">
-                    <kbd>Alt + 1</kbd><span>Home</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Alt + 2</kbd><span>Lineup</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Alt + 3</kbd><span>Draft</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Alt + 4</kbd><span>Waivers</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Alt + 5</kbd><span>Settings</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Ctrl + L</kbd><span>Open lineup</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Esc</kbd><span>Close dialog</span>
-                  </div>
-                  <div className="help-row">
-                    <kbd>Shift + ?</kbd><span>Show this help</span>
-                  </div>
+                  <div className="help-row"><kbd>Alt + 1</kbd><span>Home</span></div>
+                  <div className="help-row"><kbd>Alt + 2</kbd><span>Lineup</span></div>
+                  <div className="help-row"><kbd>Alt + 3</kbd><span>Draft</span></div>
+                  <div className="help-row"><kbd>Alt + 4</kbd><span>Waivers</span></div>
+                  <div className="help-row"><kbd>Alt + 5</kbd><span>Settings</span></div>
+                  <div className="help-row"><kbd>Ctrl + L</kbd><span>Open lineup</span></div>
+                  <div className="help-row"><kbd>Esc</kbd><span>Close dialog</span></div>
+                  <div className="help-row"><kbd>Shift + ?</kbd><span>Show this help</span></div>
                 </div>
               </>
             )}

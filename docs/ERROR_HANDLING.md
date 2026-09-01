@@ -12,12 +12,6 @@
 - All cached pages remain accessible
 - Attempting to sync shows error message
 
-**Code:**
-```typescript
-const handleOffline = () => setIsOnline(false)
-window.addEventListener('offline', handleOffline)
-```
-
 ### Lineup Optimization Error
 
 **Trigger:** Failed to apply lineup changes
@@ -27,19 +21,6 @@ window.addEventListener('offline', handleOffline)
 - Red border, white text, alert icon
 - Clear error message: "Failed to apply lineup changes."
 - User can retry or dismiss
-
-**Code:**
-```typescript
-const applyLineup = () => {
-  try {
-    setOptimized(true)
-    setHasError(false)
-  } catch (error) {
-    setHasError(true)
-    setErrorMessage('Failed to apply lineup changes.')
-  }
-}
-```
 
 ## Phase 1+ Error Scenarios
 
@@ -64,12 +45,7 @@ const applyLineup = () => {
 
 ## Toast Messages
 
-Short-lived success/info notifications:
-
-```typescript
-setToast('Lineup preview optimized. ESPN was not changed.')
-// Auto-dismisses after 3200ms
-```
+Short-lived success/info notifications auto-dismiss after 3200ms.
 
 **Styling:**
 - Green background (#27ae60)
@@ -80,50 +56,9 @@ setToast('Lineup preview optimized. ESPN was not changed.')
 
 ## Fallback States
 
-### Loading Skeleton
-
-```typescript
-<div className="skeleton" style={{ height: '100px' }} />
-```
-
-Shimmer animation over 2s; disabled under `prefers-reduced-motion`.
-
-### Empty State
-
-When no data available:
-
-```tsx
-{waiverTargets.length === 0 && (
-  <p>No waiver targets available for your league.</p>
-)}
-```
-
 ### Browser Compatibility
 
 - **Old browsers (IE11):** Not supported; redirect to upgrade page
 - **Disabled JavaScript:** Show "Please enable JavaScript" message
 - **No localStorage:** App still works; preferences reset on refresh
 - **No PWA support:** App still works as regular website
-
-## Testing Error States
-
-### Simulate Offline
-
-```javascript
-// Chrome DevTools Console
-window.dispatchEvent(new Event('offline'))
-window.dispatchEvent(new Event('online'))
-```
-
-### Simulate API Errors
-
-```javascript
-// Mock fetch to reject
-globalThis.fetch = () => Promise.reject(new Error('Network error'))
-```
-
-### Disable localStorage
-
-```javascript
-// Chrome DevTools > Application > Storage > Clear site data
-```
