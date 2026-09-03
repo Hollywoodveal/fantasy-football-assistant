@@ -21,6 +21,10 @@ import {
 import { Brand } from './components/Brand'
 import { BottomNavigation, SideNavigation, type NavKey } from './components/Navigation'
 import { lineupMoves, waiverTargets } from './data/demo'
+import { LeagueSetupDialog } from './features/league/LeagueSetupDialog'
+import { LeagueStatus } from './features/league/LeagueStatus'
+import { loadLeagueProfile, saveLeagueProfile } from './features/league/storage'
+import type { LeagueProfile } from './features/league/types'
 
 type DialogView = 'lineup' | 'waivers' | 'draft' | 'more' | 'help' | null
 type Theme = 'dark' | 'light'
@@ -38,8 +42,11 @@ function App() {
   })
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [leagueProfile, setLeagueProfile] = useState<LeagueProfile | null>(() => loadLeagueProfile())
+  const [leagueSetupOpen, setLeagueSetupOpen] = useState(false)
 
   const projectedTotal = optimized ? '137.2' : '124.8'
+  const teamName = leagueProfile?.teamName ?? 'Hollywood Veal'
 
   // Persist week selection
   useEffect(() => {
@@ -140,7 +147,7 @@ function App() {
       setDialog(null)
       setToast('Lineup preview optimized. ESPN was not changed.')
       setHasError(false)
-    } catch (error) {
+    } catch {
       setHasError(true)
       setErrorMessage('Failed to apply lineup changes.')
     }
@@ -148,6 +155,22 @@ function App() {
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark')
+  }
+
+  const openLeagueSetup = () => {
+    setDialog(null)
+    setLeagueSetupOpen(true)
+  }
+
+  const saveLeague = (profile: LeagueProfile) => {
+    if (!saveLeagueProfile(profile)) {
+      setToast('Roster could not be saved in this browser. Check private browsing or storage settings.')
+      return
+    }
+
+    setLeagueProfile(profile)
+    setLeagueSetupOpen(false)
+    setToast(`${profile.roster.length} ESPN roster players saved on this device.`)
   }
 
   return (
@@ -164,8 +187,8 @@ function App() {
       <main className="app-main">
         <header className="top-bar">
           <div className="mobile-brand"><Brand compact /></div>
-          <button className="league-select desktop-only" type="button" onClick={() => setDialog('more')}>
-            Hollywood Veal <ChevronDown aria-hidden="true" />
+          <button className="league-select desktop-only" type="button" onClick={() => leagueProfile ? setDialog('more') : openLeagueSetup()}>
+            <span>{leagueProfile?.leagueName ?? 'Connect ESPN league'}</span><ChevronDown aria-hidden="true" />
           </button>
           <label className="week-select">
             <span className="sr-only">Select fantasy week</span>
@@ -196,10 +219,12 @@ function App() {
             <p>Your best moves for the week</p>
           </section>
 
+          <LeagueStatus profile={leagueProfile} onManage={openLeagueSetup} />
+
           <section className="matchup" aria-label={`${week} projected matchup`}>
             <div className="team team--home">
               <span className="team-mark team-mark--home"><Zap aria-hidden="true" /></span>
-              <span className="team__name">Hollywood Veal</span>
+              <span className="team__name">{teamName}</span>
             </div>
             <div className="matchup__score">
               <strong className={optimized ? 'score-optimized' : ''}>{projectedTotal}</strong>
@@ -365,13 +390,15 @@ function App() {
             {dialog === 'more' && (
               <>
                 <span className="dialog__icon dialog__icon--blue"><UserRound aria-hidden="true" /></span>
-                <p className="dialog__context">Fantasy Assistant</p>
-                <h2 id="dialog-title">Hollywood Veal</h2>
-                <p className="dialog__intro">ESPN-compatible demo league · PPR · 12 teams</p>
+                <p className="dialog__context">{leagueProfile ? 'ESPN roster imported' : 'Fantasy Assistant'}</p>
+                <h2 id="dialog-title">{teamName}</h2>
+                <p className="dialog__intro">{leagueProfile
+                  ? `${leagueProfile.leagueName} · ${leagueProfile.scoring} · ${leagueProfile.teamCount} teams · ${leagueProfile.roster.length} players`
+                  : 'ESPN-compatible demo league · PPR · 12 teams'}</p>
                 <div className="settings-list">
-                  <button type="button">League settings <ChevronRight aria-hidden="true" /></button>
-                  <button type="button">Recommendation preferences <ChevronRight aria-hidden="true" /></button>
-                  <button type="button">Import ESPN roster <ChevronRight aria-hidden="true" /></button>
+                  <button type="button" onClick={openLeagueSetup}>{leagueProfile ? 'Manage ESPN roster' : 'Connect ESPN league'} <ChevronRight aria-hidden="true" /></button>
+                  <button type="button" onClick={() => setToast('League scoring preferences are part of your saved ESPN setup.')}>League settings <ChevronRight aria-hidden="true" /></button>
+                  <button type="button" onClick={() => setToast('Recommendation preferences arrive with the lineup intelligence phase.')}>Recommendation preferences <ChevronRight aria-hidden="true" /></button>
                 </div>
               </>
             )}
@@ -396,6 +423,14 @@ function App() {
             )}
           </section>
         </div>
+      )}
+
+      {leagueSetupOpen && (
+        <LeagueSetupDialog
+          initialProfile={leagueProfile}
+          onClose={() => setLeagueSetupOpen(false)}
+          onSave={saveLeague}
+        />
       )}
 
       {toast && <div className="toast" role="status"><Check aria-hidden="true" />{toast}</div>}
