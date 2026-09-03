@@ -6,7 +6,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 2. Set the strongest weekly lineup.
 3. Find the best available waiver-wire upgrades.
 
-Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Rankings remain demonstration data; the interface does not sign in to or write to ESPN.
+Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 lets the user replace the built-in demonstration rankings with a current authorized CSV export; the interface does not sign in to or write to ESPN.
 
 ## Phase 0 includes
 
@@ -43,6 +43,17 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Responsive desktop and mobile draft-room layouts
 - Clear demonstration-data labeling until a production player-data provider is connected
 
+## Phase 2.1 includes
+
+- Custom ranking CSV paste and local file import
+- Flexible column aliases for common rank, player, position, team, bye, projection, ADP, tier, and notes fields
+- Quoted CSV value support, position normalization, duplicate handling, and row-level validation
+- Import preview with valid-player and projection totals
+- Versioned browser persistence and source/freshness labels
+- A downloadable CSV template
+- Safe ranking replacement lock after the first draft pick
+- Provider-ready data boundaries without placing API keys in client code
+
 ## Local development
 
 ```bash
@@ -77,7 +88,7 @@ The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serve
 
 - ESPN credentials and private session cookies must never be collected.
 - League, roster, and draft-session data is supplied by the user and stored only in browser local storage.
-- The app makes no claim that sample recommendations are live or personalized.
+- Built-in rankings are demonstration data; imported rankings retain the user-entered provider name and update date.
 - A production data provider and recommendation service will be selected before real rankings are introduced.
 - Recommendations will remain advisory until an authorized league write integration is available.
 

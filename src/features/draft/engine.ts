@@ -29,14 +29,14 @@ export function isMyTurn(settings: DraftSettings, picks: DraftPick[]) {
   return teamPickNumbers(settings).includes(nextPickNumber(picks))
 }
 
-export function myPlayers(picks: DraftPick[]) {
+export function myPlayers(picks: DraftPick[], playerPool: DraftPlayer[] = draftPlayers) {
   const mine = new Set(picks.filter((pick) => pick.draftedBy === 'mine').map((pick) => pick.playerId))
-  return draftPlayers.filter((player) => mine.has(player.id))
+  return playerPool.filter((player) => mine.has(player.id))
 }
 
-export function availablePlayers(picks: DraftPick[]) {
+export function availablePlayers(picks: DraftPick[], playerPool: DraftPlayer[] = draftPlayers) {
   const drafted = new Set(picks.map((pick) => pick.playerId))
-  return draftPlayers.filter((player) => !drafted.has(player.id))
+  return playerPool.filter((player) => !drafted.has(player.id))
 }
 
 export function rosterCounts(players: DraftPlayer[]) {
@@ -53,13 +53,13 @@ export function positionNeed(position: DraftPlayer['position'], settings: DraftS
   return Math.max(0, directNeed + flexNeed - counts[position])
 }
 
-export function recommendations(settings: DraftSettings, picks: DraftPick[]): Recommendation[] {
-  const roster = myPlayers(picks)
+export function recommendations(settings: DraftSettings, picks: DraftPick[], playerPool: DraftPlayer[] = draftPlayers): Recommendation[] {
+  const roster = myPlayers(picks, playerPool)
   const currentPick = nextPickNumber(picks)
   const rounds = totalRounds(settings)
   const currentRound = Math.ceil(currentPick / settings.teamCount)
 
-  return availablePlayers(picks)
+  return availablePlayers(picks, playerPool)
     .map((player) => {
       const need = positionNeed(player.position, settings, roster)
       const scarcity = player.position === 'TE' ? 6 : player.position === 'RB' ? 5 : player.position === 'WR' ? 3 : 0

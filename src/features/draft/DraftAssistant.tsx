@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  Database,
   RotateCcw,
   Search,
   Settings2,
@@ -17,8 +18,10 @@ import {
 } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
 import { availablePlayers, isMyTurn, myPlayers, nextPickNumber, recommendations, slotAssignments, teamPickNumbers, totalPicks, totalRounds } from './engine'
+import { builtInDataSet, clearDraftDataSet, loadDraftDataSet, saveDraftDataSet } from './dataStorage'
+import { RankingDataDialog } from './RankingDataDialog'
 import { clearDraftSession, loadDraftSession, saveDraftSession } from './storage'
-import type { DraftPick, DraftPlayer, DraftPosition, DraftSession, DraftSettings } from './types'
+import type { DraftDataSet, DraftPick, DraftPlayer, DraftPosition, DraftSession, DraftSettings } from './types'
 
 const DEFAULT_SLOTS: DraftSettings['rosterSlots'] = {
   QB: 1,
@@ -132,6 +135,8 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const [position, setPosition] = useState<PositionFilter>('ALL')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [resetArmed, setResetArmed] = useState(false)
+  const [dataSet, setDataSet] = useState<DraftDataSet>(() => loadDraftDataSet())
+  const [dataDialogOpen, setDataDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!session) return
@@ -140,9 +145,9 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
 
   const settings = session?.settings
   const picks = useMemo(() => session?.picks ?? [], [session?.picks])
-  const available = useMemo(() => availablePlayers(picks), [picks])
-  const ranked = useMemo(() => settings ? recommendations(settings, picks) : [], [settings, picks])
-  const roster = useMemo(() => myPlayers(picks), [picks])
+  const available = useMemo(() => availablePlayers(picks, dataSet.players), [picks, dataSet.players])
+  const ranked = useMemo(() => settings ? recommendations(settings, picks, dataSet.players) : [], [settings, picks, dataSet.players])
+  const roster = useMemo(() => myPlayers(picks, dataSet.players), [picks, dataSet.players])
   const playerScores = useMemo(() => new Map(ranked.map((item) => [item.player.id, item])), [ranked])
   const filtered = useMemo(() => {
     const term = deferredSearch.trim().toLowerCase()
@@ -172,7 +177,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const undoPick = () => {
     if (!session?.picks.length) return
     const last = session.picks.at(-1)
-    const player = availablePlayers(session.picks.slice(0, -1)).find((item) => item.id === last?.playerId)
+    const player = availablePlayers(session.picks.slice(0, -1), dataSet.players).find((item) => item.id === last?.playerId)
     setSession({ ...session, picks: session.picks.slice(0, -1), updatedAt: new Date().toISOString() })
     onToast(`${player?.name ?? 'Last pick'} returned to the board.`)
   }
@@ -189,6 +194,27 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
     setResetArmed(false)
     setSelectedId(null)
     onToast('Draft reset. Your league setup is ready to edit.')
+  }
+
+  const importRankings = (nextDataSet: DraftDataSet) => {
+    if (!saveDraftDataSet(nextDataSet)) {
+      onToast('Rankings could not be saved in this browser.')
+      return
+    }
+    setDataSet(nextDataSet)
+    setSession((current) => current ? { ...current, settings: { ...current.settings, scoring: nextDataSet.scoring }, updatedAt: new Date().toISOString() } : current)
+    setSelectedId(null)
+    setDataDialogOpen(false)
+    onToast(`${nextDataSet.players.length} rankings imported from ${nextDataSet.sourceName}.`)
+  }
+
+  const restoreBuiltInRankings = () => {
+    clearDraftDataSet()
+    const builtIn = builtInDataSet()
+    setDataSet(builtIn)
+    setSelectedId(null)
+    setDataDialogOpen(false)
+    onToast('Built-in demonstration rankings restored.')
   }
 
   if (showSetup || !session || !settings) {
@@ -232,11 +258,12 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
           )}
 
           <section className="draft-board" aria-labelledby="draft-board-title">
-            <div className="draft-board__heading"><div><h2 id="draft-board-title">Best available</h2><p>Recommendation order adjusts to your roster and league settings.</p></div><span className="demo-data-label"><AlertTriangle aria-hidden="true" /> Demonstration rankings</span></div>
+            <div className="draft-board__heading"><div><h2 id="draft-board-title">Best available</h2><p>Recommendation order adjusts to your roster and league settings.</p></div><span className={dataSet.sourceName === 'Fantasy Assistant demo' ? 'demo-data-label' : 'demo-data-label is-custom'}>{dataSet.sourceName === 'Fantasy Assistant demo' ? <AlertTriangle aria-hidden="true" /> : <Database aria-hidden="true" />} {dataSet.sourceName} · {dataSet.players.length} players</span></div>
             <div className="draft-board__tools">
               <label className="draft-search"><Search aria-hidden="true" /><span className="sr-only">Search players</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player or team" /></label>
               <label className="position-filter"><span className="sr-only">Filter by position</span><select value={position} onChange={(event) => setPosition(event.target.value as PositionFilter)}>{positionFilters.map((item) => <option key={item}>{item === 'ALL' ? 'All positions' : item}</option>)}</select><ChevronDown aria-hidden="true" /></label>
               <button type="button" onClick={undoPick} disabled={!picks.length}><Undo2 aria-hidden="true" /> Undo last pick</button>
+              <button type="button" onClick={() => setDataDialogOpen(true)}><Database aria-hidden="true" /> Rankings</button>
               <button className={resetArmed ? 'is-danger' : ''} type="button" onClick={resetDraft}><RotateCcw aria-hidden="true" /> {resetArmed ? 'Confirm reset' : 'Reset draft'}</button>
             </div>
 
@@ -260,6 +287,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
           <section className="draft-summary"><div><Users aria-hidden="true" /><span><small>Players taken</small><strong>{picks.length}</strong></span></div><div><Sparkles aria-hidden="true" /><span><small>Your roster</small><strong>{roster.length}</strong></span></div></section>
         </div>
       </div>
+      {dataDialogOpen && <RankingDataDialog current={dataSet} picksCount={picks.length} requiredPlayers={maxPicks} onClose={() => setDataDialogOpen(false)} onImport={importRankings} onReset={restoreBuiltInRankings} />}
     </div>
   )
 }

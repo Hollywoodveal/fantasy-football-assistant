@@ -16,6 +16,25 @@ export type DraftPlayer = {
   notes: string
 }
 
+export type DraftDataSet = {
+  schemaVersion: 1
+  sourceName: string
+  season: number
+  scoring: ScoringFormat
+  importedAt: string
+  players: DraftPlayer[]
+}
+
+export type RankingImportIssue = {
+  lineNumber: number
+  message: string
+}
+
+export type RankingImportResult = {
+  dataSet: DraftDataSet | null
+  issues: RankingImportIssue[]
+}
+
 export type DraftSettings = {
   schemaVersion: 1
   leagueName: string

@@ -24,7 +24,7 @@ Phase 2 uses deterministic browser-side scoring. It combines:
 - Early-round penalties for kickers and defenses
 - Duplicate-quarterback restraint after the first quarterback is selected
 
-This is a transparent product foundation, not a production projection model. A later phase will replace the demonstration ranking set with versioned, sourced, current player data.
+This is a transparent product foundation, not a production projection model. Phase 2.1 adds versioned custom ranking imports so a current provider export can replace the demonstration ranking set without changing the recommendation engine.
 
 ## Storage and privacy
 
@@ -51,5 +51,5 @@ This is a transparent product foundation, not a production projection model. A l
 - Live player rankings, projections, injuries, depth charts, and news
 - Automatic ESPN draft synchronization
 - Auction and keeper draft modes
-- Full production-size ranking pool
+- Automatic provider refresh (manual production-sized CSV ranking import is available in Phase 2.1)
 - Draft grades and post-draft report cards
