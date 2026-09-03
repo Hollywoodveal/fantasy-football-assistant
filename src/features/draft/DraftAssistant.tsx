@@ -11,6 +11,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Star,
   Undo2,
   UserPlus,
   Users,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
 import { availablePlayers, isMyTurn, myPlayers, nextPickNumber, recommendations, slotAssignments, teamPickNumbers, totalPicks, totalRounds } from './engine'
+import { loadDraftBoardPreferences, saveDraftBoardPreferences } from './boardStorage'
 import { builtInDataSet, clearDraftDataSet, loadDraftDataSet, saveDraftDataSet } from './dataStorage'
 import { RankingDataDialog } from './RankingDataDialog'
 import { clearDraftSession, loadDraftSession, saveDraftSession } from './storage'
@@ -75,7 +77,7 @@ function DraftSetup({ initial, hasDraft, onStart, onBack }: { initial: DraftSett
         <div className="draft-setup__intro">
           <span className="section-icon section-icon--lime"><Settings2 aria-hidden="true" /></span>
           <div>
-            <p className="draft-kicker">Phase 2 · Draft Assistant</p>
+            <p className="draft-kicker">Phase 2.2 · Draft Assistant</p>
             <h1 id="draft-setup-title">Set up your draft</h1>
             <p>Tell us how your ESPN league drafts. You can start before you have a roster and adjust these settings later.</p>
           </div>
@@ -103,7 +105,7 @@ function DraftSetup({ initial, hasDraft, onStart, onBack }: { initial: DraftSett
           <span><strong>Snake</strong> draft order</span>
         </div>
 
-        <div className="draft-data-note"><ShieldCheck aria-hidden="true" /><span><strong>No ESPN password required.</strong> Draft progress stays in this browser. Phase 2 uses a built-in demonstration ranking set until live data is connected.</span></div>
+        <div className="draft-data-note"><ShieldCheck aria-hidden="true" /><span><strong>No ESPN password required.</strong> Draft progress stays in this browser. Import a current authorized CSV for real draft decisions; the built-in pool is demonstration data.</span></div>
         <button className="primary-action draft-start" type="button" disabled={!settings.leagueName.trim() || !settings.teamName.trim() || rounds === 0} onClick={() => onStart(settings)}>{hasDraft ? 'Save settings and return' : 'Start draft assistant'} <Sparkles aria-hidden="true" /></button>
       </section>
     </div>
@@ -137,11 +139,18 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const [resetArmed, setResetArmed] = useState(false)
   const [dataSet, setDataSet] = useState<DraftDataSet>(() => loadDraftDataSet())
   const [dataDialogOpen, setDataDialogOpen] = useState(false)
+  const [preferences, setPreferences] = useState(() => loadDraftBoardPreferences())
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [tier, setTier] = useState<number | 'ALL'>('ALL')
 
   useEffect(() => {
     if (!session) return
     if (!saveDraftSession(session)) onToast('Draft progress could not be saved in this browser.')
   }, [session, onToast])
+
+  useEffect(() => {
+    if (!saveDraftBoardPreferences(preferences)) onToast('Draft favorites and notes could not be saved.')
+  }, [preferences, onToast])
 
   const settings = session?.settings
   const picks = useMemo(() => session?.picks ?? [], [session?.picks])
@@ -149,13 +158,17 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const ranked = useMemo(() => settings ? recommendations(settings, picks, dataSet.players) : [], [settings, picks, dataSet.players])
   const roster = useMemo(() => myPlayers(picks, dataSet.players), [picks, dataSet.players])
   const playerScores = useMemo(() => new Map(ranked.map((item) => [item.player.id, item])), [ranked])
+  const availableTiers = useMemo(() => [...new Set(dataSet.players.map((player) => player.tier))].sort((a, b) => a - b), [dataSet.players])
+  const favoriteIds = useMemo(() => new Set(preferences.favorites), [preferences.favorites])
   const filtered = useMemo(() => {
     const term = deferredSearch.trim().toLowerCase()
     return available.filter((player) =>
       (position === 'ALL' || player.position === position) &&
+      (tier === 'ALL' || player.tier === tier) &&
+      (!favoritesOnly || favoriteIds.has(player.id)) &&
       (!term || `${player.name} ${player.nflTeam} ${player.position}`.toLowerCase().includes(term)),
     ).sort((a, b) => (playerScores.get(b.id)?.score ?? 0) - (playerScores.get(a.id)?.score ?? 0))
-  }, [available, deferredSearch, position, playerScores])
+  }, [available, deferredSearch, favoriteIds, favoritesOnly, position, playerScores, tier])
   const recommendation = selectedId ? ranked.find((item) => item.player.id === selectedId) ?? ranked[0] : ranked[0]
 
   const startDraft = (nextSettings: DraftSettings) => {
@@ -217,6 +230,14 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
     onToast('Built-in demonstration rankings restored.')
   }
 
+  const toggleFavorite = (playerId: string) => {
+    setPreferences((current) => ({ ...current, favorites: current.favorites.includes(playerId) ? current.favorites.filter((id) => id !== playerId) : [...current.favorites, playerId] }))
+  }
+
+  const updatePlayerNote = (playerId: string, note: string) => {
+    setPreferences((current) => ({ ...current, notes: { ...current.notes, [playerId]: note } }))
+  }
+
   if (showSetup || !session || !settings) {
     return <DraftSetup initial={session?.settings ?? createSettings(leagueName, teamName, scoring)} hasDraft={Boolean(session?.picks.length)} onStart={startDraft} onBack={onBack} />
   }
@@ -248,6 +269,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
               </div>
               <div className="draft-recommendation__stats"><span><small>Proj. pts</small><strong>{recommendation.player.projectedPoints.toFixed(1)}</strong></span><span><small>ADP</small><strong>{recommendation.player.adp.toFixed(1)}</strong></span><span><small>Tier</small><strong>{recommendation.player.tier}</strong></span></div>
               <div className="draft-recommendation__why"><p>Why this pick</p>{recommendation.reasons.map((reason) => <span key={reason}><Check aria-hidden="true" />{reason}</span>)}</div>
+              <div className="draft-player-personal"><button className={favoriteIds.has(recommendation.player.id) ? 'is-favorite' : ''} type="button" aria-pressed={favoriteIds.has(recommendation.player.id)} onClick={() => toggleFavorite(recommendation.player.id)}><Star aria-hidden="true" /> {favoriteIds.has(recommendation.player.id) ? 'Favorited' : 'Favorite'}</button><label><span>Your note</span><input aria-label={`Note for ${recommendation.player.name}`} value={preferences.notes[recommendation.player.id] ?? ''} onChange={(event) => updatePlayerNote(recommendation.player.id, event.target.value)} placeholder="Sleeper, injury concern, target..." /></label></div>
               <div className="draft-recommendation__actions">
                 <button className="primary-action" type="button" onClick={() => makePick(recommendation.player, 'mine')}><UserPlus aria-hidden="true" /> Draft to my team</button>
                 <button className="plain-action" type="button" onClick={() => makePick(recommendation.player, 'other')}><X aria-hidden="true" /> Taken by another team</button>
@@ -266,18 +288,19 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
               <button type="button" onClick={() => setDataDialogOpen(true)}><Database aria-hidden="true" /> Rankings</button>
               <button className={resetArmed ? 'is-danger' : ''} type="button" onClick={resetDraft}><RotateCcw aria-hidden="true" /> {resetArmed ? 'Confirm reset' : 'Reset draft'}</button>
             </div>
+            <div className="draft-board__filters" aria-label="Draft board filters"><label><span>Tier</span><select value={tier} onChange={(event) => setTier(event.target.value === 'ALL' ? 'ALL' : Number(event.target.value))}><option value="ALL">All tiers</option>{availableTiers.map((item) => <option key={item} value={item}>Tier {item}</option>)}</select></label><button className={favoritesOnly ? 'is-active' : ''} type="button" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((current) => !current)}><Star aria-hidden="true" /> Favorites only <span>{preferences.favorites.length}</span></button>{(favoritesOnly || tier !== 'ALL') && <button type="button" onClick={() => { setFavoritesOnly(false); setTier('ALL') }}>Clear board filters</button>}</div>
 
             <div className="draft-table-wrap">
               <table className="draft-table">
                 <thead><tr><th>Rec.</th><th>Player</th><th>Pos</th><th>Team</th><th>Bye</th><th>Proj.</th><th>ADP</th><th>Tier</th><th><span className="sr-only">Draft actions</span></th></tr></thead>
                 <tbody>{filtered.map((player, index) => (
                   <tr className={recommendation?.player.id === player.id ? 'is-selected' : ''} key={player.id} onClick={() => setSelectedId(player.id)}>
-                    <td>{index + 1}</td><td><button className="player-name-button" type="button" onClick={() => setSelectedId(player.id)}>{player.name}</button><small>{player.notes}</small></td><td><span className={`draft-position draft-position--${player.position.replace('/', '')}`}>{player.position}</span></td><td>{player.nflTeam}</td><td>{player.bye}</td><td>{player.projectedPoints.toFixed(1)}</td><td>{player.adp.toFixed(1)}</td><td>{player.tier}</td><td><div className="row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); makePick(player, 'mine') }} aria-label={`Draft ${player.name} to my team`}><UserPlus aria-hidden="true" /></button><button type="button" onClick={(event) => { event.stopPropagation(); makePick(player, 'other') }} aria-label={`Mark ${player.name} drafted by another team`}><X aria-hidden="true" /></button></div></td>
+                    <td><button className={favoriteIds.has(player.id) ? 'draft-favorite is-favorite' : 'draft-favorite'} type="button" aria-label={`${favoriteIds.has(player.id) ? 'Remove' : 'Add'} ${player.name} ${favoriteIds.has(player.id) ? 'from' : 'to'} favorites`} onClick={(event) => { event.stopPropagation(); toggleFavorite(player.id) }}><Star aria-hidden="true" /></button>{index + 1}</td><td><button className="player-name-button" type="button" onClick={() => setSelectedId(player.id)}>{player.name}</button><small>{preferences.notes[player.id] || player.notes}</small></td><td><span className={`draft-position draft-position--${player.position.replace('/', '')}`}>{player.position}</span></td><td>{player.nflTeam}</td><td>{player.bye}</td><td>{player.projectedPoints.toFixed(1)}</td><td>{player.adp.toFixed(1)}</td><td>{player.tier}</td><td><div className="row-actions"><button type="button" onClick={(event) => { event.stopPropagation(); makePick(player, 'mine') }} aria-label={`Draft ${player.name} to my team`}><UserPlus aria-hidden="true" /></button><button type="button" onClick={(event) => { event.stopPropagation(); makePick(player, 'other') }} aria-label={`Mark ${player.name} drafted by another team`}><X aria-hidden="true" /></button></div></td>
                   </tr>
                 ))}</tbody>
               </table>
             </div>
-            {!filtered.length && <div className="draft-no-results"><Search aria-hidden="true" /><p>No available players match that search.</p><button type="button" onClick={() => { setSearch(''); setPosition('ALL') }}>Clear filters</button></div>}
+            {!filtered.length && <div className="draft-no-results"><Search aria-hidden="true" /><p>No available players match the current filters.</p><button type="button" onClick={() => { setSearch(''); setPosition('ALL'); setTier('ALL'); setFavoritesOnly(false) }}>Clear filters</button></div>}
           </section>
         </main>
 

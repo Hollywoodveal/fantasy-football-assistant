@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { AlertTriangle, Check, Database, Download, FileUp, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Check, Database, Download, FileUp, ShieldCheck, WandSparkles, X } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
 import { parseRankingCsv, rankingCsvTemplate } from './rankingParser'
 import type { DraftDataSet, RankingImportIssue } from './types'
@@ -31,6 +31,7 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
   const [issues, setIssues] = useState<RankingImportIssue[]>([])
   const [preview, setPreview] = useState<DraftDataSet | null>(null)
   const locked = picksCount > 0
+  const ageInDays = Math.max(0, Math.floor((Date.now() - new Date(current.importedAt).getTime()) / 86_400_000))
 
   const parse = (value = text, name = sourceName) => {
     const result = parseRankingCsv(value, name, scoring)
@@ -52,7 +53,7 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
       <section className="dialog ranking-dialog" role="dialog" aria-modal="true" aria-labelledby="ranking-dialog-title">
         <button className="dialog__close" type="button" onClick={onClose} aria-label="Close"><X aria-hidden="true" /></button>
         <span className="dialog__icon dialog__icon--blue"><Database aria-hidden="true" /></span>
-        <p className="dialog__context">Phase 2.1 · Ranking data</p>
+        <p className="dialog__context">Phase 2.2 · Smart ranking import</p>
         <h2 id="ranking-dialog-title">Manage your draft rankings</h2>
         <p className="dialog__intro">Import a current CSV from your preferred ranking provider. The file is processed and saved only in this browser.</p>
 
@@ -63,13 +64,14 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
           <div><span>Updated</span><strong>{new Date(current.importedAt).toLocaleDateString()}</strong></div>
         </div>
         <div className={current.players.length >= requiredPlayers ? 'ranking-coverage is-ready' : 'ranking-coverage'}><span>{current.players.length >= requiredPlayers ? 'Full draft coverage' : 'Partial draft pool'}</span><strong>{current.players.length >= requiredPlayers ? `Enough players for all ${requiredPlayers} picks.` : `Import at least ${requiredPlayers} players to cover every scheduled pick.`}</strong></div>
+        {ageInDays > 14 && <div className="ranking-stale"><AlertTriangle aria-hidden="true" /><span>These rankings are {ageInDays} days old. Import a fresh export before draft day.</span></div>}
 
         {locked ? (
           <div className="ranking-lock"><AlertTriangle aria-hidden="true" /><div><strong>Finish or reset the current draft first.</strong><p>Changing player IDs during a draft could invalidate saved picks, so ranking replacement is locked after pick one.</p></div></div>
         ) : (
           <>
             <div className="ranking-fields">
-              <label><span>Source name</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} /></label>
+              <label><span>Source name</span><input list="ranking-source-options" value={sourceName} onChange={(event) => setSourceName(event.target.value)} /><datalist id="ranking-source-options"><option value="ESPN export" /><option value="FantasyPros export" /><option value="My custom rankings" /></datalist></label>
               <label><span>Scoring format</span><select value={scoring} onChange={(event) => setScoring(event.target.value as ScoringFormat)}><option>PPR</option><option>Half PPR</option><option>Standard</option></select></label>
             </div>
             <label className="ranking-paste"><span>Ranking CSV</span><textarea value={text} onChange={(event) => { setText(event.target.value); setPreview(null); setIssues([]) }} placeholder={rankingCsvTemplate} /></label>
@@ -80,8 +82,8 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
               <button className="primary-action" type="button" disabled={!text.trim()} onClick={() => parse()}>Validate rankings</button>
             </div>
 
-            {preview && <div className="ranking-preview"><Check aria-hidden="true" /><div><strong>{preview.players.length} valid players ready</strong><p>{preview.players.filter((player) => player.projectedPoints > 0).length} include projections · {issues.length} rows need attention{preview.players.length < requiredPlayers ? ` · ${requiredPlayers - preview.players.length} short of full draft coverage` : ''}</p></div><button className="primary-action" type="button" onClick={() => onImport(preview)}>Use these rankings</button></div>}
-            {issues.length > 0 && <div className="ranking-issues" role="status"><strong>Import notes</strong>{issues.slice(0, 5).map((issue) => <p key={`${issue.lineNumber}-${issue.message}`}>Line {issue.lineNumber}: {issue.message}</p>)}{issues.length > 5 && <p>Plus {issues.length - 5} more rows.</p>}</div>}
+            {preview && <><div className="ranking-mapping"><WandSparkles aria-hidden="true" /><span><strong>Columns detected automatically</strong>{preview.importSummary?.mappedColumns.join(' · ') || 'Player · Position'} · {preview.importSummary?.delimiter || 'comma'} separated</span></div><div className="ranking-position-counts">{(['QB', 'RB', 'WR', 'TE', 'D/ST', 'K'] as const).map((item) => <span key={item}><b>{item}</b>{preview.importSummary?.positionCounts[item] ?? 0}</span>)}</div><div className="ranking-preview"><Check aria-hidden="true" /><div><strong>{preview.players.length} valid players ready</strong><p>{preview.importSummary?.projectionCount ?? 0} include projections · {issues.length} rows need attention{preview.players.length < requiredPlayers ? ` · ${requiredPlayers - preview.players.length} short of full draft coverage` : ''}</p></div><button className="primary-action" type="button" onClick={() => onImport(preview)}>Use these rankings</button></div></>}
+            {issues.length > 0 && <div className="ranking-issues" role="status"><strong>Import notes</strong>{issues.slice(0, 5).map((issue) => <p className={`is-${issue.severity}`} key={`${issue.lineNumber}-${issue.message}`}>Line {issue.lineNumber}: {issue.message}{issue.suggestion ? ` ${issue.suggestion}` : ''}</p>)}{issues.length > 5 && <p>Plus {issues.length - 5} more rows.</p>}</div>}
           </>
         )}
 

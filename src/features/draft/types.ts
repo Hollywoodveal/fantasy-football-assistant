@@ -17,22 +17,38 @@ export type DraftPlayer = {
 }
 
 export type DraftDataSet = {
-  schemaVersion: 1
+  schemaVersion: 2
   sourceName: string
   season: number
   scoring: ScoringFormat
   importedAt: string
   players: DraftPlayer[]
+  importSummary?: RankingImportSummary
 }
 
 export type RankingImportIssue = {
   lineNumber: number
   message: string
+  severity: 'warning' | 'error'
+  suggestion?: string
+}
+
+export type RankingImportSummary = {
+  delimiter: 'comma' | 'tab' | 'pipe'
+  mappedColumns: string[]
+  projectionCount: number
+  positionCounts: Partial<Record<PlayerPosition, number>>
 }
 
 export type RankingImportResult = {
   dataSet: DraftDataSet | null
   issues: RankingImportIssue[]
+}
+
+export type DraftBoardPreferences = {
+  schemaVersion: 1
+  favorites: string[]
+  notes: Record<string, string>
 }
 
 export type DraftSettings = {

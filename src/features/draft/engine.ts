@@ -67,7 +67,7 @@ export function recommendations(settings: DraftSettings, picks: DraftPick[], pla
       const qbPenalty = player.position === 'QB' && roster.some((item) => item.position === 'QB') ? 28 : 0
       const value = Math.max(-25, player.adp - currentPick) * 1.15
       const needBoost = Math.min(28, need * 9)
-      const scoringBoost = settings.scoring === 'PPR' && player.position === 'WR' ? 5 : settings.scoring === 'Standard' && player.position === 'RB' ? 5 : 0
+      const scoringBoost = player.position === 'WR' && settings.scoring === 'PPR' ? 5 : player.position === 'WR' && settings.scoring === 'Half PPR' ? 2.5 : player.position === 'RB' && settings.scoring === 'Standard' ? 5 : 0
       const score = 180 - player.adp + value + needBoost + scarcity + scoringBoost - lateOnlyPenalty - qbPenalty
       const reasons = [
         need > 0 ? `Fills one of your remaining ${player.position} needs.` : `Adds useful ${player.position} depth.`,
