@@ -25,6 +25,7 @@ import { LeagueSetupDialog } from './features/league/LeagueSetupDialog'
 import { LeagueStatus } from './features/league/LeagueStatus'
 import { loadLeagueProfile, saveLeagueProfile } from './features/league/storage'
 import type { LeagueProfile } from './features/league/types'
+import { DraftAssistant } from './features/draft/DraftAssistant'
 
 type DialogView = 'lineup' | 'waivers' | 'draft' | 'more' | 'help' | null
 type Theme = 'dark' | 'light'
@@ -129,7 +130,7 @@ function App() {
 
   const navigate = (key: NavKey) => {
     setActiveNav(key)
-    if (key === 'home') {
+    if (key === 'home' || key === 'draft') {
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -185,7 +186,7 @@ function App() {
       <SideNavigation active={activeNav} onNavigate={navigate} />
 
       <main className="app-main">
-        <header className="top-bar">
+        {activeNav !== 'draft' && <header className="top-bar">
           <div className="mobile-brand"><Brand compact /></div>
           <button className="league-select desktop-only" type="button" onClick={() => leagueProfile ? setDialog('more') : openLeagueSetup()}>
             <span>{leagueProfile?.leagueName ?? 'Connect ESPN league'}</span><ChevronDown aria-hidden="true" />
@@ -210,8 +211,17 @@ function App() {
           <button className="profile-button" type="button" onClick={() => setDialog('more')} aria-label="Open profile and settings">
             A<span aria-hidden="true" />
           </button>
-        </header>
+        </header>}
 
+        {activeNav === 'draft' ? (
+          <DraftAssistant
+            leagueName={leagueProfile?.leagueName}
+            teamName={leagueProfile?.teamName}
+            scoring={leagueProfile?.scoring}
+            onBack={() => navigate('home')}
+            onToast={setToast}
+          />
+        ) : (
         <div className="content-wrap">
           <section className="welcome" aria-labelledby="welcome-title">
             <div className="field-lines" aria-hidden="true" />
@@ -319,10 +329,11 @@ function App() {
               <div className="draft-board-art" aria-hidden="true">
                 <span /><span /><span /><span /><span /><span /><span /><span /><span />
               </div>
-              <button className="secondary-action" type="button" onClick={() => setDialog('draft')}>Open draft board <ChevronRight aria-hidden="true" /></button>
+              <button className="secondary-action" type="button" onClick={() => navigate('draft')}>Open draft board <ChevronRight aria-hidden="true" /></button>
             </section>
           </div>
         </div>
+        )}
       </main>
 
       <BottomNavigation active={activeNav} onNavigate={navigate} />
