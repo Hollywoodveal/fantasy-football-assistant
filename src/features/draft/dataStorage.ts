@@ -5,7 +5,7 @@ const STORAGE_KEY = 'fantasy-assistant-rankings-v1'
 
 export function builtInDataSet(): DraftDataSet {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     sourceName: 'Fantasy Assistant demo',
     season: new Date().getFullYear(),
     scoring: 'PPR',
@@ -19,8 +19,8 @@ export function loadDraftDataSet(): DraftDataSet {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return builtInDataSet()
     const parsed = JSON.parse(raw) as DraftDataSet & { schemaVersion: number }
-    if (![1, 2].includes(parsed.schemaVersion) || !Array.isArray(parsed.players) || !parsed.players.length) return builtInDataSet()
-    return { ...parsed, schemaVersion: 2 }
+    if (![1, 2, 3].includes(parsed.schemaVersion) || !Array.isArray(parsed.players) || !parsed.players.length) return builtInDataSet()
+    return { ...parsed, schemaVersion: 3 }
   } catch {
     return builtInDataSet()
   }

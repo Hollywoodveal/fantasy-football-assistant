@@ -14,16 +14,56 @@ export type DraftPlayer = {
   adp: number
   tier: number
   notes: string
+  providerPlayerId?: string
+  availabilityStatus?: string
+  injuryStatus?: string
+  liveUpdatedAt?: string
 }
 
 export type DraftDataSet = {
-  schemaVersion: 2
+  schemaVersion: 3
   sourceName: string
   season: number
   scoring: ScoringFormat
   importedAt: string
   players: DraftPlayer[]
   importSummary?: RankingImportSummary
+  liveData?: LiveDataSummary
+}
+
+export type LiveDataSummary = {
+  schemaVersion: 1
+  providerId: 'sleeper'
+  providerName: string
+  season: number
+  week: number
+  seasonType: string
+  refreshedAt: string
+  matchedPlayers: number
+  providerPlayers: number
+}
+
+export type LivePlayerRecord = {
+  providerPlayerId: string
+  name: string
+  position: PlayerPosition
+  nflTeam: string
+  availabilityStatus: string
+  injuryStatus: string
+}
+
+export type LivePlayerDataResponse = {
+  schemaVersion: 1
+  provider: {
+    id: 'sleeper'
+    name: string
+    usage: string
+  }
+  season: number
+  week: number
+  seasonType: string
+  refreshedAt: string
+  players: LivePlayerRecord[]
 }
 
 export type RankingImportIssue = {

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { AlertTriangle, Check, Database, Download, FileUp, ShieldCheck, WandSparkles, X } from 'lucide-react'
+import { Activity, AlertTriangle, Check, Database, Download, FileUp, RefreshCw, ShieldCheck, WandSparkles, X } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
+import { refreshLivePlayerData } from './liveData'
 import { parseRankingCsv, rankingCsvTemplate } from './rankingParser'
 import type { DraftDataSet, RankingImportIssue } from './types'
 
@@ -10,6 +11,7 @@ type RankingDataDialogProps = {
   requiredPlayers: number
   onClose: () => void
   onImport: (dataSet: DraftDataSet) => void
+  onLiveDataUpdate: (dataSet: DraftDataSet) => void
   onReset: () => void
 }
 
@@ -23,13 +25,15 @@ function downloadTemplate() {
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-export function RankingDataDialog({ current, picksCount, requiredPlayers, onClose, onImport, onReset }: RankingDataDialogProps) {
+export function RankingDataDialog({ current, picksCount, requiredPlayers, onClose, onImport, onLiveDataUpdate, onReset }: RankingDataDialogProps) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [sourceName, setSourceName] = useState('My current rankings')
   const [scoring, setScoring] = useState<ScoringFormat>(current.scoring)
   const [text, setText] = useState('')
   const [issues, setIssues] = useState<RankingImportIssue[]>([])
   const [preview, setPreview] = useState<DraftDataSet | null>(null)
+  const [liveRefreshState, setLiveRefreshState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [liveRefreshMessage, setLiveRefreshMessage] = useState('')
   const locked = picksCount > 0
   const ageInDays = Math.max(0, Math.floor((Date.now() - new Date(current.importedAt).getTime()) / 86_400_000))
 
@@ -48,14 +52,46 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
     parse(value, inferredName)
   }
 
+  const refreshLiveData = async () => {
+    setLiveRefreshState('loading')
+    setLiveRefreshMessage('')
+    try {
+      const nextDataSet = await refreshLivePlayerData(current)
+      onLiveDataUpdate(nextDataSet)
+      setLiveRefreshState('success')
+      setLiveRefreshMessage(`${nextDataSet.liveData?.matchedPlayers ?? 0} ranking entries matched current NFL player records.`)
+    } catch (error) {
+      setLiveRefreshState('error')
+      setLiveRefreshMessage(error instanceof Error ? error.message : 'Live player data could not be refreshed.')
+    }
+  }
+
   return (
     <div className="dialog-backdrop ranking-dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="dialog ranking-dialog" role="dialog" aria-modal="true" aria-labelledby="ranking-dialog-title">
         <button className="dialog__close" type="button" onClick={onClose} aria-label="Close"><X aria-hidden="true" /></button>
         <span className="dialog__icon dialog__icon--blue"><Database aria-hidden="true" /></span>
-        <p className="dialog__context">Phase 2.2 · Smart ranking import</p>
+        <p className="dialog__context">Phase 2.3 · Live player data</p>
         <h2 id="ranking-dialog-title">Manage your draft rankings</h2>
-        <p className="dialog__intro">Import a current CSV from your preferred ranking provider. The file is processed and saved only in this browser.</p>
+        <p className="dialog__intro">Refresh current player status, then combine it with rankings from your preferred provider. Your ranking file stays in this browser.</p>
+
+        <section className="live-data-card" aria-labelledby="live-data-title">
+          <div className="live-data-card__heading">
+            <Activity aria-hidden="true" />
+            <div><span>Player metadata</span><strong id="live-data-title">{current.liveData?.providerName ?? 'Live source not checked'}</strong></div>
+            <button type="button" disabled={liveRefreshState === 'loading'} onClick={refreshLiveData}><RefreshCw className={liveRefreshState === 'loading' ? 'is-spinning' : ''} aria-hidden="true" /> {liveRefreshState === 'loading' ? 'Refreshing' : 'Refresh live data'}</button>
+          </div>
+          {current.liveData ? (
+            <div className="live-data-card__stats">
+              <span><small>Season</small><strong>{current.liveData.season}</strong></span>
+              <span><small>Week</small><strong>{current.liveData.week || 'Preseason'}</strong></span>
+              <span><small>Matched</small><strong>{current.liveData.matchedPlayers}/{current.players.length}</strong></span>
+              <span><small>Checked</small><strong>{new Date(current.liveData.refreshedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong></span>
+            </div>
+          ) : <p className="live-data-card__empty">Refresh to verify teams, availability, and injury designations. Rankings, ADP, and projections are never replaced.</p>}
+          {liveRefreshMessage && <p className={`live-data-message is-${liveRefreshState}`} role="status">{liveRefreshMessage}</p>}
+          <p className="live-data-card__boundary"><ShieldCheck aria-hidden="true" /> Sleeper supplies read-only player metadata for non-commercial use. Your selected ranking source remains authoritative.</p>
+        </section>
 
         <div className="ranking-current">
           <div><span>Current source</span><strong>{current.sourceName}</strong></div>
@@ -87,7 +123,7 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
           </>
         )}
 
-        <div className="ranking-privacy"><ShieldCheck aria-hidden="true" /><span>No file is uploaded to Fantasy Assistant. A future server-side provider connection can use an API key without exposing it in the browser.</span></div>
+        <div className="ranking-privacy"><ShieldCheck aria-hidden="true" /><span>No ranking file is uploaded to Fantasy Assistant. Live metadata is fetched through the Cloudflare Worker, and future provider keys stay server-side.</span></div>
         {current.sourceName !== 'Fantasy Assistant demo' && !locked && <button className="ranking-reset" type="button" onClick={onReset}>Restore built-in demonstration rankings</button>}
       </section>
     </div>

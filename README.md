@@ -6,7 +6,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 2. Set the strongest weekly lineup.
 3. Find the best available waiver-wire upgrades.
 
-Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, and Phase 2.2 adds provider-friendly mapping, data-quality feedback, favorites, tiers, and private player notes; the interface does not sign in to or write to ESPN.
+Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, and Phase 2.3 adds a cached server-side live player-metadata foundation; the interface does not sign in to or write to ESPN.
 
 ## Phase 0 includes
 
@@ -66,6 +66,17 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Recommendation scoring coverage for PPR, Half PPR, and Standard leagues
 - Production-sized CSV support without fabricating current rankings in the built-in demo
 
+## Phase 2.3 includes
+
+- A Cloudflare Worker API route for current NFL player metadata
+- Read-only Sleeper player and NFL-state adapters with explicit non-commercial attribution
+- Twenty-four-hour edge caching and a smaller browser cache window
+- Current season, week, team, availability, and injury-status normalization
+- Safe matching that enriches imported rankings without replacing rank, projection, ADP, tier, or notes
+- Automatic background refresh when saved metadata is older than 12 hours
+- Manual refresh, coverage feedback, source labels, and graceful provider-error states
+- A versioned local data migration that preserves existing Phase 2.1 and 2.2 imports
+
 ## Local development
 
 ```bash
@@ -92,7 +103,7 @@ npm run preview
    - Build command: `npm run build`
    - Deploy command: `npx wrangler deploy`
    - Root directory: `/`
-4. Deploy. No environment variables are required through Phase 2.
+4. Deploy. No environment variables are required for the Phase 2.3 Sleeper adapter.
 
 The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serves `index.html` for client-side routes through `not_found_handling: "single-page-application"`.
 
@@ -101,7 +112,8 @@ The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serve
 - ESPN credentials and private session cookies must never be collected.
 - League, roster, and draft-session data is supplied by the user and stored only in browser local storage.
 - Built-in rankings are demonstration data; imported rankings retain the user-entered provider name and update date.
-- A production data provider and recommendation service will be selected before real rankings are introduced.
+- Sleeper supplies player identity and status metadata only. Its API does not provide the app's rankings, projections, or ADP.
+- A licensed ranking/projection provider will be selected before server-supplied real rankings are introduced.
 - Recommendations will remain advisory until an authorized league write integration is available.
 
-See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, and [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for the smart-import and personalization design.
+See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, and [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary.
