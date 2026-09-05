@@ -421,6 +421,51 @@
 .light-mode .draft-pick-help,
 .light-mode .draft-summary { background: rgba(255, 255, 255, 0.86); }
 
+.light-mode {
+  color: var(--text);
+}
+
+.light-mode .side-nav {
+  --text: #f6f9fb;
+  --muted: #93a8bc;
+  --muted-strong: #b3c2cf;
+  color: var(--text);
+}
+
+.light-mode .draft-board,
+.light-mode .draft-roster,
+.light-mode .draft-pick-help,
+.light-mode .draft-summary {
+  color: var(--text);
+}
+
+.light-mode .draft-kicker,
+.light-mode .draft-recommendation h1,
+.light-mode .draft-recommendation__why p,
+.light-mode .draft-recommendation__why svg,
+.light-mode .draft-rank,
+.light-mode .draft-side-heading strong,
+.light-mode .draft-table td:first-child,
+.light-mode .draft-board__filters button:last-child,
+.light-mode .draft-empty svg,
+.light-mode .draft-no-results button {
+  color: #3f6212;
+}
+
+.light-mode .draft-recommendation__identity b,
+.light-mode .draft-position {
+  color: #1d4ed8;
+}
+
+.light-mode .demo-data-label,
+.light-mode .draft-live-status {
+  color: #854d0e;
+}
+
+.light-mode .draft-roster-row em {
+  color: var(--muted);
+}
+
 @media (max-width: 1260px) {
   .draft-room__bar { grid-template-columns: auto 1fr 1fr auto; }
   .draft-progress { grid-column: 2 / 4; grid-row: 2; }
