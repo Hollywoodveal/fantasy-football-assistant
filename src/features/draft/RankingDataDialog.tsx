@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Activity, AlertTriangle, Check, Database, Download, FileUp, RefreshCw, ShieldCheck, WandSparkles, X } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
 import { refreshLivePlayerData } from './liveData'
@@ -37,6 +37,14 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
   const locked = picksCount > 0
   const ageInDays = Math.max(0, Math.floor((Date.now() - new Date(current.importedAt).getTime()) / 86_400_000))
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const parse = (value = text, name = sourceName) => {
     const result = parseRankingCsv(value, name, scoring)
     setIssues(result.issues)
@@ -74,9 +82,6 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
         aria-modal="true"
         aria-labelledby="ranking-dialog-title"
         aria-describedby="ranking-dialog-description"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onClose()
-        }}
       >
         <button className="dialog__close" type="button" onClick={onClose} aria-label="Close rankings" autoFocus><X aria-hidden="true" /></button>
         <span className="dialog__icon dialog__icon--blue"><Database aria-hidden="true" /></span>
