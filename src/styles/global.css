@@ -1856,11 +1856,16 @@ textarea:focus-visible {
 }
 
 .league-setup {
+  color-scheme: dark;
+  --text: #f6f9fb;
+  --muted: #93a8bc;
+  --muted-strong: #b3c2cf;
   width: min(100%, 780px);
   max-height: min(900px, calc(100vh - 56px));
   overflow: auto;
   border: 1px solid #31536d;
   border-radius: var(--radius-lg);
+  color: var(--text);
   background: linear-gradient(155deg, #0d2539, #071621 70%);
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.58);
   animation: dialog-up 220ms ease;
