@@ -7,6 +7,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 3. Find the best available waiver-wire upgrades.
 
 Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, Phase 2.4 added local ESPN Top 300 PDF import, Phase 2.4.1 added flexible player sorting, Phase 2.5 adds transparent draft intelligence, and Phase 3.1 adds the first weekly lineup optimizer foundation; the interface does not sign in to or write to ESPN.
+Phase 3.2 adds read-only public ESPN league and roster syncing through the Cloudflare Worker without collecting ESPN credentials.
 
 ## Phase 0 includes
 
@@ -125,6 +126,15 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Preview and reset controls that never write lineup changes to ESPN
 - Deterministic unit coverage for flex promotion, slot uniqueness, and IR handling
 
+## Phase 3.2 includes
+
+- Public ESPN League ID and season lookup
+- Cloudflare Worker proxying with short-lived caching and sanitized errors
+- Team selection plus starter, bench, IR, NFL-team, and scoring-format normalization
+- One-click refresh for connected public leagues
+- Manual roster import fallback for private leagues and provider outages
+- No password, private cookie, login code, or ESPN write access
+
 ## Local development
 
 ```bash
@@ -142,6 +152,7 @@ npm run lint
 npm run build
 npm run preview
 npm run test:lineup
+npm run test:espn
 ```
 
 ## Import into Cloudflare
@@ -152,18 +163,17 @@ npm run test:lineup
    - Build command: `npm run build`
    - Deploy command: `npx wrangler deploy`
    - Root directory: `/`
-4. Deploy. No environment variables are required for the Phase 2.3 Sleeper adapter.
+4. Deploy. No environment variables are required for the Sleeper adapter or public ESPN read-only sync.
 
 The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serves `index.html` for client-side routes through `not_found_handling: "single-page-application"`.
 
 ## Product boundaries
 
 - ESPN credentials and private session cookies must never be collected.
-- League, roster, and draft-session data is supplied by the user and stored only in browser local storage.
+- Public ESPN League ID and season may be sent to the app's Cloudflare Worker for read-only sync. The selected normalized roster is stored in browser local storage.
 - Built-in rankings are demonstration data; imported rankings retain the user-entered provider name and update date.
 - Sleeper supplies player identity and status metadata only. Its API does not provide the app's rankings, projections, or ADP.
 - A licensed ranking/projection provider will be selected before server-supplied real rankings are introduced.
 - Recommendations will remain advisory until an authorized league write integration is available.
 
-See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, and [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic.
-See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic, and [docs/PHASE_3_1.md](docs/PHASE_3_1.md) for the weekly optimizer foundation.
+See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic, [docs/PHASE_3_1.md](docs/PHASE_3_1.md) for the weekly optimizer foundation, and [docs/PHASE_3_2.md](docs/PHASE_3_2.md) for public ESPN league sync.

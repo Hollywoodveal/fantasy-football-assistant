@@ -1,3 +1,10 @@
+import {
+  buildEspnLeagueUrl,
+  parseEspnLeague,
+  validateEspnSyncInput,
+  type EspnLeagueDocument,
+} from './features/league/espnSync.ts'
+
 type AssetBinding = {
   fetch(request: Request): Promise<Response>
 }
@@ -37,6 +44,10 @@ const CACHE_NAME = 'fantasy-assistant-live-data-v1'
 const CACHE_TTL_SECONDS = 86_400
 const BROWSER_TTL_SECONDS = 900
 const LIVE_DATA_PATH = '/api/live-data'
+const ESPN_LEAGUE_PATH = '/api/espn/league'
+const ESPN_CACHE_NAME = 'fantasy-assistant-espn-public-v1'
+const ESPN_EDGE_TTL_SECONDS = 300
+const ESPN_BROWSER_TTL_SECONDS = 60
 
 const apiHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -134,6 +145,87 @@ async function handleLiveData(request: Request, context: WorkerContext) {
   }
 }
 
+async function handleEspnLeague(request: Request, context: WorkerContext) {
+  const requestUrl = new URL(request.url)
+  let input: { leagueId: string; season: number }
+  try {
+    input = validateEspnSyncInput(requestUrl.searchParams.get('leagueId'), requestUrl.searchParams.get('season'))
+  } catch (error) {
+    return jsonResponse({
+      code: 'invalid_espn_league',
+      message: error instanceof Error ? error.message : 'Enter a valid ESPN League ID and season.',
+    }, 400, { 'Cache-Control': 'no-store' })
+  }
+
+  const cache = await caches.open(ESPN_CACHE_NAME)
+  const cacheUrl = new URL(ESPN_LEAGUE_PATH, request.url)
+  cacheUrl.search = new URLSearchParams({ leagueId: input.leagueId, season: String(input.season) }).toString()
+  const cacheKey = new Request(cacheUrl, { method: 'GET' })
+  const cached = await cache.match(cacheKey)
+  if (cached) {
+    const headers = new Headers(cached.headers)
+    headers.set('Cache-Control', `public, max-age=${ESPN_BROWSER_TTL_SECONDS}`)
+    headers.set('X-Fantasy-ESPN-Cache', 'HIT')
+    return new Response(cached.body, { status: cached.status, headers })
+  }
+
+  let providerResponse: Response
+  try {
+    providerResponse = await fetch(buildEspnLeagueUrl(input.leagueId, input.season), {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Fantasy-Assistant/0.1 (read-only public league sync)',
+      },
+    })
+  } catch {
+    return jsonResponse({
+      code: 'espn_unavailable',
+      message: 'ESPN could not be reached. Your saved roster is unchanged; try again or use manual import.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  if (providerResponse.status === 401 || providerResponse.status === 403) {
+    return jsonResponse({
+      code: 'espn_private_league',
+      message: 'ESPN did not expose this league publicly. Make the league public while syncing, or use manual roster import.',
+    }, 403, { 'Cache-Control': 'no-store' })
+  }
+  if (providerResponse.status === 404) {
+    return jsonResponse({
+      code: 'espn_league_not_found',
+      message: 'ESPN could not find that league for the selected season. Check the League ID and season.',
+    }, 404, { 'Cache-Control': 'no-store' })
+  }
+  if (!providerResponse.ok) {
+    return jsonResponse({
+      code: 'espn_unavailable',
+      message: 'ESPN league data is temporarily unavailable. Your saved roster is unchanged.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  try {
+    const document = await providerResponse.json() as EspnLeagueDocument
+    const payload = parseEspnLeague(document, input.leagueId, input.season)
+    const serialized = JSON.stringify(payload)
+    const cachedResponse = new Response(serialized, {
+      headers: { ...apiHeaders, 'Cache-Control': `public, max-age=${ESPN_EDGE_TTL_SECONDS}` },
+    })
+    context.waitUntil(cache.put(cacheKey, cachedResponse.clone()))
+    return new Response(serialized, {
+      headers: {
+        ...apiHeaders,
+        'Cache-Control': `public, max-age=${ESPN_BROWSER_TTL_SECONDS}`,
+        'X-Fantasy-ESPN-Cache': 'MISS',
+      },
+    })
+  } catch {
+    return jsonResponse({
+      code: 'espn_response_invalid',
+      message: 'ESPN returned league data in an unsupported format. Your saved roster is unchanged.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+}
+
 export default {
   async fetch(request: Request, environment: WorkerEnvironment, context: WorkerContext) {
     const url = new URL(request.url)
@@ -144,8 +236,12 @@ export default {
       if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
       return handleLiveData(request, context)
     }
+    if (url.pathname === ESPN_LEAGUE_PATH) {
+      if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
+      return handleEspnLeague(request, context)
+    }
     if (url.pathname === '/api/health') {
-      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.1' }, 200, { 'Cache-Control': 'no-store' })
+      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.2' }, 200, { 'Cache-Control': 'no-store' })
     }
     if (url.pathname.startsWith('/api/')) return jsonResponse({ code: 'not_found', message: 'API route not found.' }, 404, { 'Cache-Control': 'no-store' })
     return environment.ASSETS.fetch(request)

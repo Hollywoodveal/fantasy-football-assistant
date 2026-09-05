@@ -23,6 +23,7 @@ import { BottomNavigation, SideNavigation, type NavKey } from './components/Navi
 import { lineupMoves, waiverTargets } from './data/demo'
 import { LeagueSetupDialog } from './features/league/LeagueSetupDialog'
 import { LeagueStatus } from './features/league/LeagueStatus'
+import { fetchPublicEspnLeague, profileFromEspnLeague } from './features/league/espnSync'
 import { loadLeagueProfile, saveLeagueProfile } from './features/league/storage'
 import type { LeagueProfile } from './features/league/types'
 import { DraftAssistant } from './features/draft/DraftAssistant'
@@ -46,6 +47,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [leagueProfile, setLeagueProfile] = useState<LeagueProfile | null>(() => loadLeagueProfile())
   const [leagueSetupOpen, setLeagueSetupOpen] = useState(false)
+  const [leagueSyncing, setLeagueSyncing] = useState(false)
 
   const projectedTotal = optimized ? '137.2' : '124.8'
   const teamName = leagueProfile?.teamName ?? 'Hollywood Veal'
@@ -176,6 +178,28 @@ function App() {
     setToast(`${profile.roster.length} ESPN roster players saved on this device.`)
   }
 
+  const refreshLeague = async () => {
+    if (!leagueProfile?.sync) {
+      openLeagueSetup()
+      return
+    }
+    setLeagueSyncing(true)
+    try {
+      const result = await fetchPublicEspnLeague(leagueProfile.leagueId, leagueProfile.season)
+      const refreshedProfile = profileFromEspnLeague(result, leagueProfile.sync.teamId)
+      if (!saveLeagueProfile(refreshedProfile)) {
+        setToast('ESPN refreshed, but this browser could not save the updated roster.')
+        return
+      }
+      setLeagueProfile(refreshedProfile)
+      setToast(`${refreshedProfile.roster.length} ESPN players refreshed. No ESPN changes were made.`)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'ESPN refresh failed. Your saved roster is unchanged.')
+    } finally {
+      setLeagueSyncing(false)
+    }
+  }
+
   return (
     <div className={`app-shell${isOnline ? '' : ' offline'}${theme === 'light' ? ' light-mode' : ''}`}>
       {!isOnline && (
@@ -239,7 +263,7 @@ function App() {
             <p>Your best moves for the week</p>
           </section>
 
-          <LeagueStatus profile={leagueProfile} onManage={openLeagueSetup} />
+          <LeagueStatus profile={leagueProfile} onManage={openLeagueSetup} onRefresh={refreshLeague} isRefreshing={leagueSyncing} />
 
           <section className="matchup" aria-label={`${week} projected matchup`}>
             <div className="team team--home">

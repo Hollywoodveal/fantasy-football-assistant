@@ -1,12 +1,14 @@
-import { Check, Database, Link2, ShieldCheck } from 'lucide-react'
+import { Check, Database, Link2, RefreshCw, ShieldCheck } from 'lucide-react'
 import type { LeagueProfile } from './types'
 
 type LeagueStatusProps = {
   profile: LeagueProfile | null
   onManage: () => void
+  onRefresh: () => void
+  isRefreshing: boolean
 }
 
-export function LeagueStatus({ profile, onManage }: LeagueStatusProps) {
+export function LeagueStatus({ profile, onManage, onRefresh, isRefreshing }: LeagueStatusProps) {
   if (!profile) {
     return (
       <section className="league-status league-status--empty" aria-labelledby="league-status-title">
@@ -17,7 +19,7 @@ export function LeagueStatus({ profile, onManage }: LeagueStatusProps) {
         </div>
         <span className="league-status__privacy"><ShieldCheck aria-hidden="true" /> Stored on this device</span>
         <button className="secondary-action league-status__action" type="button" onClick={onManage}>
-          Import roster
+          Connect league
         </button>
       </section>
     )
@@ -25,23 +27,34 @@ export function LeagueStatus({ profile, onManage }: LeagueStatusProps) {
 
   const starters = profile.roster.filter((player) => player.slot === 'Starter').length
   const bench = profile.roster.filter((player) => player.slot === 'Bench').length
+  const isSynced = profile.sync?.mode === 'espn-public'
+  const syncedAt = isSynced
+    ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(profile.sync?.lastSyncedAt ?? profile.importedAt))
+    : null
 
   return (
     <section className="league-status" aria-labelledby="league-status-title">
       <span className="league-status__icon league-status__icon--connected"><Database aria-hidden="true" /></span>
       <div className="league-status__copy">
-        <span className="league-status__eyebrow"><Check aria-hidden="true" /> ESPN roster imported</span>
+        <span className="league-status__eyebrow"><Check aria-hidden="true" /> {isSynced ? 'ESPN public sync connected' : 'ESPN roster imported'}</span>
         <h2 id="league-status-title">{profile.teamName}</h2>
-        <p>{profile.leagueName} · {profile.scoring} · {profile.teamCount} teams</p>
+        <p>{profile.leagueName} · {profile.scoring} · {profile.teamCount} teams{syncedAt ? ` · Synced ${syncedAt}` : ''}</p>
       </div>
       <div className="league-status__counts" aria-label="Imported roster summary">
         <span><strong>{profile.roster.length}</strong> Players</span>
         <span><strong>{starters}</strong> Starters</span>
         <span><strong>{bench}</strong> Bench</span>
       </div>
-      <button className="secondary-action league-status__action" type="button" onClick={onManage}>
-        Manage roster
-      </button>
+      <div className="league-status__actions">
+        {isSynced && (
+          <button className="primary-action league-status__refresh" type="button" onClick={onRefresh} disabled={isRefreshing}>
+            <RefreshCw className={isRefreshing ? 'is-spinning' : ''} aria-hidden="true" /> {isRefreshing ? 'Syncing…' : 'Refresh ESPN'}
+          </button>
+        )}
+        <button className="secondary-action league-status__action" type="button" onClick={onManage}>
+          Manage roster
+        </button>
+      </div>
     </section>
   )
 }

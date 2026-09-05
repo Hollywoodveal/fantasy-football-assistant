@@ -3,14 +3,18 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Database,
   FileText,
   LockKeyhole,
+  RefreshCw,
   ShieldCheck,
   Upload,
+  Users,
   X,
 } from 'lucide-react'
+import { fetchPublicEspnLeague, profileFromEspnLeague, type EspnLeagueSync } from './espnSync'
 import { parseRosterText, sampleRosterText, serializeRoster } from './rosterParser'
-import { scoringFormats, type LeagueProfile, type RosterParseError } from './types'
+import { scoringFormats, type EspnPublicSync, type LeagueProfile, type RosterParseError } from './types'
 
 type LeagueSetupDialogProps = {
   initialProfile: LeagueProfile | null
@@ -36,6 +40,10 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
   const [roster, setRoster] = useState(() => initialProfile?.roster ?? [])
   const [parseErrors, setParseErrors] = useState<RosterParseError[]>([])
   const [formError, setFormError] = useState('')
+  const [syncMetadata, setSyncMetadata] = useState<EspnPublicSync | undefined>(() => initialProfile?.sync)
+  const [syncedLeague, setSyncedLeague] = useState<EspnLeagueSync | null>(null)
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const updateLeague = <Key extends keyof LeagueDraft>(key: Key, value: LeagueDraft[Key]) => {
@@ -59,8 +67,63 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
       setFormError('Add at least one valid player before continuing.')
       return
     }
+    setSyncMetadata(undefined)
     setFormError('')
     setStep(3)
+  }
+
+  const findPublicLeague = async () => {
+    if (!/^\d{1,20}$/.test(league.leagueId)) {
+      setFormError('Enter the numeric League ID from your ESPN fantasy league URL.')
+      return
+    }
+
+    setIsSyncing(true)
+    setFormError('')
+    setSyncedLeague(null)
+    try {
+      const result = await fetchPublicEspnLeague(league.leagueId, league.season)
+      setSyncedLeague(result)
+      setSelectedTeamId(result.teams[0]?.id ?? null)
+      setLeague((current) => ({
+        ...current,
+        leagueId: result.leagueId,
+        leagueName: result.leagueName,
+        season: result.season,
+        scoring: result.scoring,
+        teamCount: result.teamCount,
+      }))
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'ESPN league sync failed. Use manual import instead.')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const reviewSyncedTeam = () => {
+    if (!syncedLeague || selectedTeamId === null) {
+      setFormError('Choose your team from the synced ESPN league.')
+      return
+    }
+    try {
+      const profile = profileFromEspnLeague(syncedLeague, selectedTeamId)
+      setLeague({
+        leagueId: profile.leagueId,
+        leagueName: profile.leagueName,
+        teamName: profile.teamName,
+        season: profile.season,
+        scoring: profile.scoring,
+        teamCount: profile.teamCount,
+      })
+      setRoster(profile.roster)
+      setRosterText(serializeRoster(profile.roster))
+      setParseErrors([])
+      setSyncMetadata(profile.sync)
+      setFormError('')
+      setStep(3)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'That ESPN team could not be imported.')
+    }
   }
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -82,6 +145,7 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
       teamName: league.teamName.trim(),
       roster,
       importedAt: new Date().toISOString(),
+      sync: syncMetadata,
     })
   }
 
@@ -112,11 +176,57 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
 
         {step === 1 && (
           <div className="league-setup__body">
+            <section className="espn-sync-card" aria-labelledby="espn-sync-title">
+              <div className="setup-intro">
+                <span className="setup-intro__icon"><RefreshCw aria-hidden="true" /></span>
+                <div>
+                  <p className="espn-sync-card__eyebrow">Recommended · read-only</p>
+                  <h3 id="espn-sync-title">Sync a public ESPN league</h3>
+                  <p>Enter the League ID from your ESPN league URL. No password, cookie, or login code is requested.</p>
+                </div>
+              </div>
+
+              <div className="espn-sync-form">
+                <label className="form-field">
+                  <span>ESPN League ID</span>
+                  <input value={league.leagueId} onChange={(event) => updateLeague('leagueId', event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="Example: 123456789" autoFocus />
+                </label>
+                <label className="form-field">
+                  <span>Season</span>
+                  <select value={league.season} onChange={(event) => updateLeague('season', Number(event.target.value))}>
+                    {[currentSeason - 1, currentSeason, currentSeason + 1].map((season) => <option key={season}>{season}</option>)}
+                  </select>
+                </label>
+                <button className="primary-action espn-sync-submit" type="button" onClick={findPublicLeague} disabled={isSyncing}>
+                  <RefreshCw className={isSyncing ? 'is-spinning' : ''} aria-hidden="true" /> {isSyncing ? 'Checking ESPN…' : 'Find public league'}
+                </button>
+              </div>
+
+              {syncedLeague && (
+                <div className="espn-sync-result" role="status">
+                  <span className="espn-sync-result__icon"><Database aria-hidden="true" /></span>
+                  <div className="espn-sync-result__copy">
+                    <strong>{syncedLeague.leagueName}</strong>
+                    <span>{syncedLeague.scoring} · {syncedLeague.teamCount} teams · Week {syncedLeague.scoringPeriodId || 'preseason'}</span>
+                  </div>
+                  <label className="form-field espn-team-select">
+                    <span>Choose your team</span>
+                    <select aria-label="Choose your ESPN team" value={selectedTeamId ?? ''} onChange={(event) => setSelectedTeamId(Number(event.target.value))}>
+                      {syncedLeague.teams.map((team) => <option key={team.id} value={team.id}>{team.name} · {team.roster.length} players</option>)}
+                    </select>
+                  </label>
+                  <button className="secondary-action" type="button" onClick={reviewSyncedTeam}><Users aria-hidden="true" /> Review synced roster</button>
+                </div>
+              )}
+            </section>
+
+            <div className="setup-divider"><span>or import manually</span></div>
+
             <div className="setup-intro">
               <span className="setup-intro__icon"><ShieldCheck aria-hidden="true" /></span>
               <div>
-                <h3>Tell us about your ESPN league</h3>
-                <p>This creates the scoring and roster context future recommendations will use.</p>
+                <h3>Enter league details manually</h3>
+                <p>Use this fallback for private leagues or whenever ESPN public access is unavailable.</p>
               </div>
             </div>
 
@@ -141,19 +251,9 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
                   {[8, 10, 12, 14, 16].map((count) => <option value={count} key={count}>{count} teams</option>)}
                 </select>
               </label>
-              <label className="form-field">
-                <span>Season</span>
-                <select value={league.season} onChange={(event) => updateLeague('season', Number(event.target.value))}>
-                  {[currentSeason, currentSeason + 1].map((season) => <option key={season}>{season}</option>)}
-                </select>
-              </label>
-              <label className="form-field">
-                <span>ESPN League ID <small>Optional</small></span>
-                <input value={league.leagueId} onChange={(event) => updateLeague('leagueId', event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="Found in your ESPN league URL" />
-              </label>
             </div>
 
-            <div className="privacy-note"><LockKeyhole aria-hidden="true" /><span>Never enter an ESPN password, private cookie, or login code. Phase 1 stores this setup only in your browser.</span></div>
+            <div className="privacy-note"><LockKeyhole aria-hidden="true" /><span>Fantasy Assistant requests public, read-only league data through its Cloudflare Worker. Your selected roster is stored only in this browser.</span></div>
           </div>
         )}
 
@@ -191,7 +291,7 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
               <span className="setup-intro__icon setup-intro__icon--complete"><Check aria-hidden="true" /></span>
               <div>
                 <h3>Review your ESPN roster</h3>
-                <p>Confirm the league and player totals before saving this roster on your device.</p>
+                <p>{syncMetadata ? 'Confirm the public ESPN team and roster before saving it on this device.' : 'Confirm the league and player totals before saving this roster on your device.'}</p>
               </div>
             </div>
 
@@ -228,7 +328,7 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
               ))}
             </div>
 
-            <p className="phase-note">Player projections and automatic ESPN syncing arrive in later phases. This release creates the secure league and roster foundation.</p>
+            <p className="phase-note">{syncMetadata ? 'Read-only ESPN sync is connected. Fantasy Assistant cannot submit lineup, waiver, trade, or draft changes to ESPN.' : 'Manual fallback is active. You can connect public ESPN read-only sync later from Manage roster.'}</p>
           </div>
         )}
 
@@ -240,7 +340,7 @@ export function LeagueSetupDialog({ initialProfile, onClose, onSave }: LeagueSet
           ) : <span />}
           {step === 1 && <button className="primary-action" type="button" onClick={continueFromLeague}>Continue to roster <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && <button className="primary-action" type="button" onClick={reviewRoster}>Review import <ArrowRight aria-hidden="true" /></button>}
-          {step === 3 && <button className="primary-action" type="button" onClick={saveProfile}>{initialProfile ? 'Save roster changes' : 'Save ESPN roster'} <Check aria-hidden="true" /></button>}
+          {step === 3 && <button className="primary-action" type="button" onClick={saveProfile}>{syncMetadata ? 'Save synced ESPN roster' : initialProfile ? 'Save roster changes' : 'Save ESPN roster'} <Check aria-hidden="true" /></button>}
         </footer>
       </section>
     </div>

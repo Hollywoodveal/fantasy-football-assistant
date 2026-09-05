@@ -24,6 +24,12 @@ function isLeagueProfile(value: unknown): value is LeagueProfile {
       && rosterSlots.some((slot) => slot === player.slot)
     ))
     && typeof profile.importedAt === 'string'
+    && (!profile.sync || (
+      profile.sync.mode === 'espn-public'
+      && typeof profile.sync.teamId === 'number'
+      && typeof profile.sync.scoringPeriodId === 'number'
+      && typeof profile.sync.lastSyncedAt === 'string'
+    ))
 }
 
 export function loadLeagueProfile(): LeagueProfile | null {

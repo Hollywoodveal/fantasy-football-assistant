@@ -16,6 +16,13 @@ export type ImportedPlayer = {
   slot: RosterSlot
 }
 
+export type EspnPublicSync = {
+  mode: 'espn-public'
+  teamId: number
+  scoringPeriodId: number
+  lastSyncedAt: string
+}
+
 export type LeagueProfile = {
   schemaVersion: 1
   platform: 'espn'
@@ -27,6 +34,7 @@ export type LeagueProfile = {
   teamCount: number
   roster: ImportedPlayer[]
   importedAt: string
+  sync?: EspnPublicSync
 }
 
 export type RosterParseError = {
