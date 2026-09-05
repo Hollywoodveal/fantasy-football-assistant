@@ -145,7 +145,7 @@ export default {
       return handleLiveData(request, context)
     }
     if (url.pathname === '/api/health') {
-      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '2.4.1.1' }, 200, { 'Cache-Control': 'no-store' })
+      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '2.5' }, 200, { 'Cache-Control': 'no-store' })
     }
     if (url.pathname.startsWith('/api/')) return jsonResponse({ code: 'not_found', message: 'API route not found.' }, 404, { 'Cache-Control': 'no-store' })
     return environment.ASSETS.fetch(request)

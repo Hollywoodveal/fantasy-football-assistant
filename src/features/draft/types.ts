@@ -121,4 +121,21 @@ export type Recommendation = {
   player: DraftPlayer
   score: number
   reasons: string[]
+  breakdown: {
+    ranking: number
+    adpValue: number
+    rosterNeed: number
+    scarcity: number
+    scoringFit: number
+    roundPlan: number
+    positionRun: number
+    injury: number
+    latePosition: number
+    duplicateQuarterback: number
+  }
+  availability: {
+    status: 'take-now' | 'at-risk' | 'likely' | 'final-pick'
+    label: string
+    nextPick: number | null
+  }
 }

@@ -1,6 +1,7 @@
-import { draftPlayers } from './players'
-import { adpDraftValue } from './recommendationScore'
-import type { DraftPick, DraftPlayer, DraftPosition, DraftSettings, Recommendation } from './types'
+import { draftPlayers } from './players.ts'
+import { availabilityOutlook, detectPositionRun, injuryAdjustment, roundPlanAdjustment } from './draftIntelligence.ts'
+import { adpDraftValue } from './recommendationScore.ts'
+import type { DraftPick, DraftPlayer, DraftPosition, DraftSettings, PlayerPosition, Recommendation } from './types'
 
 const FLEX_ELIGIBLE = new Set<DraftPlayer['position']>(['RB', 'WR', 'TE'])
 
@@ -24,6 +25,11 @@ export function teamPickNumbers(settings: DraftSettings) {
       ? (round - 1) * settings.teamCount + settings.draftPosition
       : round * settings.teamCount - settings.draftPosition + 1
   })
+}
+
+export function nextTeamPick(settings: DraftSettings, picks: DraftPick[]) {
+  const currentPick = nextPickNumber(picks)
+  return teamPickNumbers(settings).find((pick) => pick > currentPick) ?? null
 }
 
 export function isMyTurn(settings: DraftSettings, picks: DraftPick[]) {
@@ -59,6 +65,13 @@ export function recommendations(settings: DraftSettings, picks: DraftPick[], pla
   const currentPick = nextPickNumber(picks)
   const rounds = totalRounds(settings)
   const currentRound = Math.ceil(currentPick / settings.teamCount)
+  const rosterByPosition = rosterCounts(roster)
+  const nextScheduledPick = nextTeamPick(settings, picks)
+  const playersById = new Map(playerPool.map((player) => [player.id, player]))
+  const recentPositions = picks
+    .map((pick) => playersById.get(pick.playerId)?.position)
+    .filter((position): position is PlayerPosition => Boolean(position))
+  const positionRun = detectPositionRun(recentPositions)
 
   return availablePlayers(picks, playerPool)
     .map((player) => {
@@ -69,15 +82,44 @@ export function recommendations(settings: DraftSettings, picks: DraftPick[], pla
       const value = adpDraftValue(player.adp, currentPick)
       const needBoost = Math.min(28, need * 9)
       const scoringBoost = player.position === 'WR' && settings.scoring === 'PPR' ? 5 : player.position === 'WR' && settings.scoring === 'Half PPR' ? 2.5 : player.position === 'RB' && settings.scoring === 'Standard' ? 5 : 0
-      const score = 180 - player.adp + value + needBoost + scarcity + scoringBoost - lateOnlyPenalty - qbPenalty
+      const directNeed = Math.max(0, (settings.rosterSlots[player.position] ?? 0) - rosterByPosition[player.position])
+      const roundPlan = roundPlanAdjustment({ position: player.position, currentRound, totalRounds: rounds, directNeed })
+      const runBoost = positionRun?.position === player.position ? 5 : 0
+      const injury = injuryAdjustment(player.injuryStatus, player.availabilityStatus)
+      const breakdown: Recommendation['breakdown'] = {
+        ranking: 180 - player.adp,
+        adpValue: value,
+        rosterNeed: needBoost,
+        scarcity,
+        scoringFit: scoringBoost,
+        roundPlan,
+        positionRun: runBoost,
+        injury,
+        latePosition: -lateOnlyPenalty,
+        duplicateQuarterback: -qbPenalty,
+      }
+      const score = Object.values(breakdown).reduce((total, adjustment) => total + adjustment, 0)
+      const availability = availabilityOutlook(player.adp, currentPick, nextScheduledPick)
       const reasons = [
         need > 0 ? `Fills one of your remaining ${player.position} needs.` : `Adds useful ${player.position} depth.`,
         value > 4 ? `Strong value at pick ${currentPick} versus ADP ${player.adp.toFixed(1)}.` : player.notes,
+        availability.label,
       ]
       if (scoringBoost > 0) reasons.push(`Profile fits your ${settings.scoring} scoring format.`)
-      return { player, score, reasons }
+      if (roundPlan >= 8) reasons.push(`Round ${currentRound} priority: fill an open ${player.position} starter.`)
+      if (positionRun?.position === player.position) reasons.push(`${player.position} run: ${positionRun.count} of the last ${positionRun.window} picks.`)
+      if (injury < 0) reasons.push(`Live status lowers this recommendation: ${player.injuryStatus || player.availabilityStatus}.`)
+      return { player, score, reasons, breakdown, availability }
     })
     .sort((a, b) => b.score - a.score || a.player.adp - b.player.adp)
+}
+
+export function currentPositionRun(picks: DraftPick[], playerPool: DraftPlayer[] = draftPlayers) {
+  const playersById = new Map(playerPool.map((player) => [player.id, player]))
+  const positions = picks
+    .map((pick) => playersById.get(pick.playerId)?.position)
+    .filter((position): position is PlayerPosition => Boolean(position))
+  return detectPositionRun(positions)
 }
 
 export function slotAssignments(settings: DraftSettings, roster: DraftPlayer[]) {

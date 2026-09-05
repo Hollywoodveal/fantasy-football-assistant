@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
-import { availablePlayers, isMyTurn, myPlayers, nextPickNumber, recommendations, slotAssignments, teamPickNumbers, totalPicks, totalRounds } from './engine'
+import { availablePlayers, currentPositionRun, isMyTurn, myPlayers, nextPickNumber, recommendations, slotAssignments, teamPickNumbers, totalPicks, totalRounds } from './engine'
 import { loadDraftBoardPreferences, saveDraftBoardPreferences } from './boardStorage'
 import { builtInDataSet, clearDraftDataSet, loadDraftDataSet, saveDraftDataSet } from './dataStorage'
 import { liveDataNeedsRefresh, refreshLivePlayerData } from './liveData'
@@ -27,7 +27,7 @@ import { playerSortOptions, sortDraftPlayers } from './playerSorting'
 import type { PlayerSort } from './playerSorting'
 import { RankingDataDialog } from './RankingDataDialog'
 import { clearDraftSession, loadDraftSession, saveDraftSession } from './storage'
-import type { DraftDataSet, DraftPick, DraftPlayer, DraftPosition, DraftSession, DraftSettings } from './types'
+import type { DraftDataSet, DraftPick, DraftPlayer, DraftPosition, DraftSession, DraftSettings, Recommendation } from './types'
 
 const DEFAULT_SLOTS: DraftSettings['rosterSlots'] = {
   QB: 1,
@@ -65,7 +65,28 @@ function createSettings(leagueName?: string, teamName?: string, scoring?: Scorin
 
 function playerLiveStatus(player: DraftPlayer) {
   const availability = player.availabilityStatus?.trim()
-  return [player.injuryStatus?.trim(), availability && availability.toLowerCase() !== 'active' ? availability : ''].filter(Boolean).join(' · ')
+  const injury = player.injuryStatus?.trim()
+  const meaningful = (value?: string) => value && !['active', 'na', 'n/a'].includes(value.toLowerCase()) ? value : ''
+  return [meaningful(injury), meaningful(availability)].filter(Boolean).join(' · ')
+}
+
+const breakdownLabels = {
+  ranking: 'Ranking',
+  adpValue: 'ADP value',
+  rosterNeed: 'Roster need',
+  scarcity: 'Scarcity',
+  scoringFit: 'Scoring fit',
+  roundPlan: 'Round plan',
+  positionRun: 'Position run',
+  injury: 'Injury status',
+  latePosition: 'K/DST timing',
+  duplicateQuarterback: 'QB depth',
+} as const
+
+function scoreParts(recommendation: Recommendation) {
+  return Object.entries(recommendation.breakdown)
+    .filter(([, value]) => value !== 0)
+    .map(([key, value]) => ({ label: breakdownLabels[key as keyof typeof breakdownLabels], value }))
 }
 
 function DraftSetup({ initial, hasDraft, onStart, onBack }: { initial: DraftSettings; hasDraft: boolean; onStart: (settings: DraftSettings) => void; onBack: () => void }) {
@@ -86,7 +107,7 @@ function DraftSetup({ initial, hasDraft, onStart, onBack }: { initial: DraftSett
         <div className="draft-setup__intro">
           <span className="section-icon section-icon--lime"><Settings2 aria-hidden="true" /></span>
           <div>
-            <p className="draft-kicker">Phase 2.4.1 · Player Sorting Ready</p>
+            <p className="draft-kicker">Phase 2.5 · Smarter Recommendations</p>
             <h1 id="draft-setup-title">Set up your draft</h1>
             <p>Tell us how your ESPN league drafts. You can start before you have a roster and adjust these settings later.</p>
           </div>
@@ -184,6 +205,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const available = useMemo(() => availablePlayers(picks, dataSet.players), [picks, dataSet.players])
   const ranked = useMemo(() => settings ? recommendations(settings, picks, dataSet.players) : [], [settings, picks, dataSet.players])
   const roster = useMemo(() => myPlayers(picks, dataSet.players), [picks, dataSet.players])
+  const positionRun = useMemo(() => currentPositionRun(picks, dataSet.players), [picks, dataSet.players])
   const recommendationScores = useMemo(() => new Map(ranked.map((item) => [item.player.id, item.score])), [ranked])
   const availableTiers = useMemo(() => [...new Set(dataSet.players.map((player) => player.tier))].sort((a, b) => a - b), [dataSet.players])
   const favoriteIds = useMemo(() => new Set(preferences.favorites), [preferences.favorites])
@@ -198,6 +220,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
     return sortDraftPlayers(matchingPlayers, playerSort, recommendationScores)
   }, [available, deferredSearch, favoriteIds, favoritesOnly, playerSort, position, recommendationScores, tier])
   const recommendation = selectedId ? ranked.find((item) => item.player.id === selectedId) ?? ranked[0] : ranked[0]
+  const topRecommendations = ranked.slice(0, 3)
   const recommendationLiveStatus = recommendation ? playerLiveStatus(recommendation.player) : ''
 
   const startDraft = (nextSettings: DraftSettings) => {
@@ -319,6 +342,23 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
                 <button className="primary-action" type="button" onClick={() => makePick(recommendation.player, 'mine')}><UserPlus aria-hidden="true" /> Draft to my team</button>
                 <button className="plain-action" type="button" onClick={() => makePick(recommendation.player, 'other')}><X aria-hidden="true" /> Taken by another team</button>
               </div>
+              <div className="draft-intelligence">
+                <div className="draft-top-choices" aria-label="Top three recommendations">
+                  <p>Top choices</p>
+                  <div>{topRecommendations.map((item, index) => (
+                    <button className={recommendation.player.id === item.player.id ? 'is-active' : ''} type="button" key={item.player.id} aria-pressed={recommendation.player.id === item.player.id} onClick={() => setSelectedId(item.player.id)}>
+                      <span>{index + 1}</span>
+                      <strong>{item.player.name}</strong>
+                      <small>{item.player.position} · ADP {item.player.adp.toFixed(1)}</small>
+                      <em className={`availability-badge is-${item.availability.status}`}>{item.availability.label}</em>
+                    </button>
+                  ))}</div>
+                </div>
+                <details className="draft-score-breakdown">
+                  <summary>Recommendation score <strong>{recommendation.score.toFixed(1)}</strong></summary>
+                  <div>{scoreParts(recommendation).map((part) => <span key={part.label}><small>{part.label}</small><strong className={part.value < 0 ? 'is-negative' : ''}>{part.value > 0 ? '+' : ''}{part.value.toFixed(1)}</strong></span>)}</div>
+                </details>
+              </div>
             </section>
           ) : (
             <section className="draft-empty"><Check aria-hidden="true" /><h1>Draft board complete</h1><p>You have used every player in the current rankings.</p></section>
@@ -351,6 +391,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
 
         <div className="draft-sidebar">
           <RosterRail settings={settings} roster={roster} />
+          {positionRun && <section className="draft-run-alert" aria-label={`${positionRun.position} position run detected`}><Activity aria-hidden="true" /><div><strong>{positionRun.position} run detected</strong><p>{positionRun.count} of the last {positionRun.window} picks were {positionRun.position}s. The recommendation score now accounts for that pressure.</p></div></section>}
           <section className="draft-pick-help"><Clock3 aria-hidden="true" /><div><h2>Keep ESPN in sync</h2><p>After every real selection, mark that player here. Use <strong>Draft to my team</strong> only for your picks.</p></div></section>
           <section className="draft-summary"><div><Users aria-hidden="true" /><span><small>Players taken</small><strong>{picks.length}</strong></span></div><div><Sparkles aria-hidden="true" /><span><small>Your roster</small><strong>{roster.length}</strong></span></div></section>
         </div>
