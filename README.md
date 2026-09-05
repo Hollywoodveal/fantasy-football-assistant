@@ -6,7 +6,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 2. Set the strongest weekly lineup.
 3. Find the best available waiver-wire upgrades.
 
-Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, Phase 2.4 added local ESPN Top 300 PDF import, Phase 2.4.1 added flexible player sorting, and Phase 2.5 adds transparent draft intelligence; the interface does not sign in to or write to ESPN.
+Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, Phase 2.4 added local ESPN Top 300 PDF import, Phase 2.4.1 added flexible player sorting, Phase 2.5 adds transparent draft intelligence, and Phase 3.1 adds the first weekly lineup optimizer foundation; the interface does not sign in to or write to ESPN.
 
 ## Phase 0 includes
 
@@ -114,6 +114,17 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Directional guidance for whether a player may survive until the manager's next snake-draft pick
 - Regression coverage for recommendation direction, injury states, draft timing, and run detection
 
+## Phase 3.1 includes
+
+- A dedicated weekly lineup optimizer surface available from Lineup navigation
+- Legal QB, RB, WR, TE, FLEX, D/ST, and K assignment modeling with duplicate-player protection
+- Current-starter versus all-available-roster projection comparison
+- ESPN-compatible saved-roster support with a clearly labeled preview roster fallback
+- Local weekly projection normalization with transparent estimate labels until matchup data is connected
+- Recommended bench moves, projected point gains, open-slot warnings, and IR exclusions
+- Preview and reset controls that never write lineup changes to ESPN
+- Deterministic unit coverage for flex promotion, slot uniqueness, and IR handling
+
 ## Local development
 
 ```bash
@@ -130,6 +141,7 @@ npm run typecheck
 npm run lint
 npm run build
 npm run preview
+npm run test:lineup
 ```
 
 ## Import into Cloudflare
@@ -154,3 +166,4 @@ The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serve
 - Recommendations will remain advisory until an authorized league write integration is available.
 
 See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, and [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic.
+See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic, and [docs/PHASE_3_1.md](docs/PHASE_3_1.md) for the weekly optimizer foundation.

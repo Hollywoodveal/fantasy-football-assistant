@@ -26,6 +26,7 @@ import { LeagueStatus } from './features/league/LeagueStatus'
 import { loadLeagueProfile, saveLeagueProfile } from './features/league/storage'
 import type { LeagueProfile } from './features/league/types'
 import { DraftAssistant } from './features/draft/DraftAssistant'
+import { LineupOptimizer } from './features/lineup/LineupOptimizer'
 
 type DialogView = 'lineup' | 'waivers' | 'draft' | 'more' | 'help' | null
 type Theme = 'dark' | 'light'
@@ -131,7 +132,7 @@ function App() {
 
   const navigate = (key: NavKey) => {
     setActiveNav(key)
-    if (key === 'home' || key === 'draft') {
+    if (key === 'home' || key === 'draft' || key === 'lineup') {
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -220,6 +221,14 @@ function App() {
             teamName={leagueProfile?.teamName}
             scoring={leagueProfile?.scoring}
             onBack={() => navigate('home')}
+            onToast={setToast}
+          />
+        ) : activeNav === 'lineup' ? (
+          <LineupOptimizer
+            profile={leagueProfile}
+            week={week}
+            onBack={() => navigate('home')}
+            onManageRoster={openLeagueSetup}
             onToast={setToast}
           />
         ) : (
