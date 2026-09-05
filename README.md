@@ -6,7 +6,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 2. Set the strongest weekly lineup.
 3. Find the best available waiver-wire upgrades.
 
-Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, and Phase 2.4 adds local ESPN Top 300 PDF import; the interface does not sign in to or write to ESPN.
+Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, Phase 2.4 added local ESPN Top 300 PDF import, and Phase 2.4.1 adds flexible player sorting; the interface does not sign in to or write to ESPN.
 
 ## Phase 0 includes
 
@@ -95,6 +95,14 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Full-draft coverage checks, positional summaries, and a review step before replacement
 - Clear rejection guidance for unsupported, image-only, positional-only, or incomplete PDFs
 - No scraping, ESPN account connection, password, cookie, or server-side ranking-file upload
+
+## Phase 2.4.1 includes
+
+- Draft-board sorting by recommendation, ranking/ADP, projected points, tier, player name, team, or bye week
+- Draft-friendly default directions: highest projections first and lowest rank, tier, or bye first
+- Stable tie-breakers so repeated sorts keep a predictable order
+- Sorting that composes with search, position, tier, and favorites filters
+- Recommendation cards that remain driven by roster needs and league settings regardless of board sort
 
 ## Local development
 
