@@ -589,19 +589,17 @@
   .availability-badge { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f8f9fa;
-    --bg-deep: #eff0f2;
-    --surface: #ffffff;
-    --surface-strong: #f3f4f6;
-    --surface-soft: #e9eaed;
-    --border: #d1d5db;
-    --border-soft: rgba(75, 85, 99, 0.2);
-    --text: #1a1d23;
-    --muted: #6b7280;
-    --muted-strong: #374151;
-  }
+:root[data-theme='light'] {
+  --bg: #f8f9fa;
+  --bg-deep: #eff0f2;
+  --surface: #ffffff;
+  --surface-strong: #f3f4f6;
+  --surface-soft: #e9eaed;
+  --border: #d1d5db;
+  --border-soft: rgba(75, 85, 99, 0.2);
+  --text: #1a1d23;
+  --muted: #6b7280;
+  --muted-strong: #374151;
 }
 
 * {
@@ -623,12 +621,10 @@ body {
     linear-gradient(135deg, #06131f, #071725 58%, #05111c);
 }
 
-@media (prefers-color-scheme: light) {
-  body {
-    background:
-      radial-gradient(circle at 72% -14%, rgba(200, 220, 240, 0.1), transparent 33rem),
-      linear-gradient(135deg, #f8f9fa, #f0f1f3 58%, #fafbfc);
-  }
+:root[data-theme='light'] body {
+  background:
+    radial-gradient(circle at 72% -14%, rgba(200, 220, 240, 0.1), transparent 33rem),
+    linear-gradient(135deg, #f8f9fa, #f0f1f3 58%, #fafbfc);
 }
 
 button,

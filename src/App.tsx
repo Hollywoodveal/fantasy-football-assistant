@@ -62,6 +62,7 @@ function App() {
   // Persist theme preference
   useEffect(() => {
     localStorage.setItem('theme', theme)
+    document.documentElement.dataset.theme = theme
     document.documentElement.style.colorScheme = theme
   }, [theme])
 
