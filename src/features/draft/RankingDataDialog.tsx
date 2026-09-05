@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, AlertTriangle, Check, Database, Download, FileUp, RefreshCw, ShieldCheck, WandSparkles, X } from 'lucide-react'
+import { Activity, AlertTriangle, Check, Database, Download, ExternalLink, FileText, FileUp, RefreshCw, ShieldCheck, WandSparkles, X } from 'lucide-react'
 import type { ScoringFormat } from '../league/types'
+import { detectEspnScoring, parseEspnRankingText } from './espnRankingParser'
 import { refreshLivePlayerData } from './liveData'
+import { extractPdfText } from './pdfText'
 import { parseRankingCsv, rankingCsvTemplate } from './rankingParser'
-import type { DraftDataSet, RankingImportIssue } from './types'
+import type { DraftDataSet, RankingImportIssue, RankingImportResult } from './types'
+
+const ESPN_CHEAT_SHEET_URL = 'https://www.espn.com/fantasy/football/story/_/page/FFCheatSheetCent26-48640423/2026-fantasy-football-rankings-cheat-sheet-depth-charts-ppr'
 
 type RankingDataDialogProps = {
   current: DraftDataSet
@@ -27,6 +31,7 @@ function downloadTemplate() {
 
 export function RankingDataDialog({ current, picksCount, requiredPlayers, onClose, onImport, onLiveDataUpdate, onReset }: RankingDataDialogProps) {
   const fileInput = useRef<HTMLInputElement>(null)
+  const espnFileInput = useRef<HTMLInputElement>(null)
   const [sourceName, setSourceName] = useState('My current rankings')
   const [scoring, setScoring] = useState<ScoringFormat>(current.scoring)
   const [text, setText] = useState('')
@@ -34,6 +39,8 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
   const [preview, setPreview] = useState<DraftDataSet | null>(null)
   const [liveRefreshState, setLiveRefreshState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [liveRefreshMessage, setLiveRefreshMessage] = useState('')
+  const [espnImportState, setEspnImportState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [espnImportMessage, setEspnImportMessage] = useState('')
   const locked = picksCount > 0
   const ageInDays = Math.max(0, Math.floor((Date.now() - new Date(current.importedAt).getTime()) / 86_400_000))
 
@@ -45,10 +52,13 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const parse = (value = text, name = sourceName) => {
-    const result = parseRankingCsv(value, name, scoring)
+  const showResult = (result: RankingImportResult) => {
     setIssues(result.issues)
     setPreview(result.dataSet)
+  }
+
+  const parse = (value = text, name = sourceName) => {
+    showResult(parseRankingCsv(value, name, scoring))
   }
 
   const readFile = async (file?: File) => {
@@ -58,6 +68,35 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
     const inferredName = file.name.replace(/\.(csv|txt)$/i, '')
     setSourceName(inferredName)
     parse(value, inferredName)
+  }
+
+  const readEspnFile = async (file?: File) => {
+    if (!file) return
+    setEspnImportState('loading')
+    setEspnImportMessage(`Reading ${file.name} on this device…`)
+    setPreview(null)
+    setIssues([])
+    try {
+      const value = await extractPdfText(file)
+      const nextScoring = detectEspnScoring(value, scoring)
+      const result = parseEspnRankingText(value, nextScoring)
+      setScoring(nextScoring)
+      setText('')
+      showResult(result)
+      if (!result.dataSet) {
+        setEspnImportState('error')
+        setEspnImportMessage('This PDF could not be converted into an ESPN Top 300 draft board.')
+        return
+      }
+      setSourceName(result.dataSet.sourceName)
+      setEspnImportState('success')
+      setEspnImportMessage(`${result.dataSet.players.length} ESPN rankings detected. Review the preview, then apply them.`)
+    } catch (error) {
+      setEspnImportState('error')
+      setEspnImportMessage(error instanceof Error ? error.message : 'The ESPN PDF could not be read.')
+    } finally {
+      if (espnFileInput.current) espnFileInput.current.value = ''
+    }
   }
 
   const refreshLiveData = async () => {
@@ -85,9 +124,9 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
       >
         <button className="dialog__close" type="button" onClick={onClose} aria-label="Close rankings" autoFocus><X aria-hidden="true" /></button>
         <span className="dialog__icon dialog__icon--blue"><Database aria-hidden="true" /></span>
-        <p className="dialog__context">Phase 2.3.2 · Draft-day ready</p>
+        <p className="dialog__context">Phase 2.4 · ESPN rankings import</p>
         <h2 id="ranking-dialog-title">Manage your draft rankings</h2>
-        <p className="dialog__intro" id="ranking-dialog-description">Refresh current player status, then combine it with rankings from your preferred provider. Your ranking file stays in this browser.</p>
+        <p className="dialog__intro" id="ranking-dialog-description">Import ESPN's current Top 300 cheat sheet or a ranking CSV, then combine it with live player status. Your files stay in this browser.</p>
 
         <section className="live-data-card" aria-labelledby="live-data-title">
           <div className="live-data-card__heading">
@@ -120,9 +159,22 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
           <div className="ranking-lock"><AlertTriangle aria-hidden="true" /><div><strong>Finish or reset the current draft first.</strong><p>Changing player IDs during a draft could invalidate saved picks, so ranking replacement is locked after pick one.</p></div></div>
         ) : (
           <>
+            <section className="espn-import-card" aria-labelledby="espn-import-title">
+              <div className="espn-import-card__heading">
+                <span className="espn-import-card__icon"><FileText aria-hidden="true" /></span>
+                <div><span>Official cheat sheet</span><strong id="espn-import-title">ESPN Top 300 PDF</strong></div>
+                <a href={ESPN_CHEAT_SHEET_URL} target="_blank" rel="noreferrer">Get rankings <ExternalLink aria-hidden="true" /></a>
+              </div>
+              <p>Download ESPN's PPR or non-PPR Top 300 PDF, then select it here. Rankings are extracted locally and never sent to Fantasy Assistant.</p>
+              <input ref={espnFileInput} className="sr-only" type="file" accept=".pdf,application/pdf" onChange={(event) => readEspnFile(event.target.files?.[0])} />
+              <button className="secondary-action espn-import-card__button" type="button" disabled={espnImportState === 'loading'} onClick={() => espnFileInput.current?.click()}><FileUp aria-hidden="true" /> {espnImportState === 'loading' ? 'Reading ESPN PDF…' : 'Upload ESPN PDF'}</button>
+              {espnImportMessage && <p className={`espn-import-message is-${espnImportState}`} role={espnImportState === 'error' ? 'alert' : 'status'}>{espnImportMessage}</p>}
+            </section>
+
+            <div className="ranking-divider"><span>or import CSV</span></div>
             <div className="ranking-fields">
               <label><span>Source name</span><input list="ranking-source-options" value={sourceName} onChange={(event) => setSourceName(event.target.value)} /><datalist id="ranking-source-options"><option value="ESPN export" /><option value="FantasyPros export" /><option value="My custom rankings" /></datalist></label>
-              <label><span>Scoring format</span><select value={scoring} onChange={(event) => setScoring(event.target.value as ScoringFormat)}><option>PPR</option><option>Half PPR</option><option>Standard</option></select></label>
+              <label><span>Scoring format</span><select value={scoring} onChange={(event) => { const nextScoring = event.target.value as ScoringFormat; setScoring(nextScoring); setPreview((currentPreview) => currentPreview ? { ...currentPreview, scoring: nextScoring } : null) }}><option>PPR</option><option>Half PPR</option><option>Standard</option></select></label>
             </div>
             <label className="ranking-paste"><span>Ranking CSV</span><textarea value={text} onChange={(event) => { setText(event.target.value); setPreview(null); setIssues([]) }} placeholder={rankingCsvTemplate} /></label>
             <input ref={fileInput} className="sr-only" type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => readFile(event.target.files?.[0])} />
@@ -132,12 +184,12 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
               <button className="primary-action" type="button" disabled={!text.trim()} onClick={() => parse()}>Validate rankings</button>
             </div>
 
-            {preview && <><div className="ranking-mapping"><WandSparkles aria-hidden="true" /><span><strong>Columns detected automatically</strong>{preview.importSummary?.mappedColumns.join(' · ') || 'Player · Position'} · {preview.importSummary?.delimiter || 'comma'} separated</span></div><div className="ranking-position-counts">{(['QB', 'RB', 'WR', 'TE', 'D/ST', 'K'] as const).map((item) => <span key={item}><b>{item}</b>{preview.importSummary?.positionCounts[item] ?? 0}</span>)}</div><div className="ranking-preview"><Check aria-hidden="true" /><div><strong>{preview.players.length} valid players ready</strong><p>{preview.importSummary?.projectionCount ?? 0} include projections · {issues.length} rows need attention{preview.players.length < requiredPlayers ? ` · ${requiredPlayers - preview.players.length} short of full draft coverage` : ''}</p></div><button className="primary-action" type="button" onClick={() => onImport(preview)}>Use these rankings</button></div></>}
+            {preview && <><div className="ranking-mapping"><WandSparkles aria-hidden="true" /><span><strong>{preview.importSummary?.format === 'espn-pdf' ? 'ESPN fields detected automatically' : 'Columns detected automatically'}</strong>{preview.importSummary?.mappedColumns.join(' · ') || 'Player · Position'}{preview.importSummary?.format === 'espn-pdf' ? ' · PDF' : ` · ${preview.importSummary?.delimiter || 'comma'} separated`}</span></div><div className="ranking-position-counts">{(['QB', 'RB', 'WR', 'TE', 'D/ST', 'K'] as const).map((item) => <span key={item}><b>{item}</b>{preview.importSummary?.positionCounts[item] ?? 0}</span>)}</div><div className="ranking-preview"><Check aria-hidden="true" /><div><strong>{preview.players.length} valid players ready</strong><p>{preview.importSummary?.projectionCount ?? 0} include projections · {issues.length} rows need attention{preview.players.length < requiredPlayers ? ` · ${requiredPlayers - preview.players.length} short of full draft coverage` : ''}</p></div><button className="primary-action" type="button" onClick={() => onImport({ ...preview, sourceName: sourceName.trim() || preview.sourceName, scoring })}>Use these rankings</button></div></>}
             {issues.length > 0 && <div className="ranking-issues" role="status"><strong>Import notes</strong>{issues.slice(0, 5).map((issue) => <p className={`is-${issue.severity}`} key={`${issue.lineNumber}-${issue.message}`}>Line {issue.lineNumber}: {issue.message}{issue.suggestion ? ` ${issue.suggestion}` : ''}</p>)}{issues.length > 5 && <p>Plus {issues.length - 5} more rows.</p>}</div>}
           </>
         )}
 
-        <div className="ranking-privacy"><ShieldCheck aria-hidden="true" /><span>No ranking file is uploaded to Fantasy Assistant. Live metadata is fetched through the Cloudflare Worker, and future provider keys stay server-side.</span></div>
+        <div className="ranking-privacy"><ShieldCheck aria-hidden="true" /><span>Ranking PDFs and CSVs are parsed only on this device. Live metadata is fetched through the Cloudflare Worker; no ESPN password, cookie, or private league credential is collected.</span></div>
         {current.sourceName !== 'Fantasy Assistant demo' && !locked && <button className="ranking-reset" type="button" onClick={onReset}>Restore built-in demonstration rankings</button>}
       </section>
     </div>

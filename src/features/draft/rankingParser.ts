@@ -118,7 +118,7 @@ export function parseRankingCsv(text: string, sourceName: string, scoring: Scori
   players.sort((a, b) => a.adp - b.adp)
   const mappedColumns = (Object.keys(indexes) as CanonicalColumn[]).filter((key) => indexes[key] >= 0)
   const projectionCount = players.reduce((count, player) => count + Number(player.projectedPoints > 0), 0)
-  return { dataSet: { schemaVersion: 3, sourceName: sourceName.trim() || 'Custom rankings', season, scoring, importedAt: new Date().toISOString(), players, importSummary: { delimiter: delimiterName(delimiter), mappedColumns, projectionCount, positionCounts } }, issues }
+  return { dataSet: { schemaVersion: 3, sourceName: sourceName.trim() || 'Custom rankings', season, scoring, importedAt: new Date().toISOString(), players, importSummary: { format: 'delimited', delimiter: delimiterName(delimiter), mappedColumns, projectionCount, positionCounts } }, issues }
 }
 
 export const rankingCsvTemplate = `Rank,Player,Position,Team,Bye,Projected Points,ADP,Tier,Notes

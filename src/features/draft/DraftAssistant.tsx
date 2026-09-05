@@ -84,7 +84,7 @@ function DraftSetup({ initial, hasDraft, onStart, onBack }: { initial: DraftSett
         <div className="draft-setup__intro">
           <span className="section-icon section-icon--lime"><Settings2 aria-hidden="true" /></span>
           <div>
-            <p className="draft-kicker">Phase 2.3.2 · Draft-Day Ready</p>
+            <p className="draft-kicker">Phase 2.4 · ESPN Rankings Ready</p>
             <h1 id="draft-setup-title">Set up your draft</h1>
             <p>Tell us how your ESPN league drafts. You can start before you have a roster and adjust these settings later.</p>
           </div>
@@ -317,7 +317,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
               </div>
             </section>
           ) : (
-            <section className="draft-empty"><Check aria-hidden="true" /><h1>Draft board complete</h1><p>You have used every player in the Phase 2 demonstration rankings.</p></section>
+            <section className="draft-empty"><Check aria-hidden="true" /><h1>Draft board complete</h1><p>You have used every player in the current rankings.</p></section>
           )}
 
           <section className="draft-board" aria-labelledby="draft-board-title">

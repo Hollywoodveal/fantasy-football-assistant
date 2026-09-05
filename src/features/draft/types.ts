@@ -74,6 +74,7 @@ export type RankingImportIssue = {
 }
 
 export type RankingImportSummary = {
+  format?: 'delimited' | 'espn-pdf'
   delimiter: 'comma' | 'tab' | 'pipe'
   mappedColumns: string[]
   projectionCount: number
