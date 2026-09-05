@@ -1,4 +1,5 @@
 import { draftPlayers } from './players'
+import { adpDraftValue } from './recommendationScore'
 import type { DraftPick, DraftPlayer, DraftPosition, DraftSettings, Recommendation } from './types'
 
 const FLEX_ELIGIBLE = new Set<DraftPlayer['position']>(['RB', 'WR', 'TE'])
@@ -65,7 +66,7 @@ export function recommendations(settings: DraftSettings, picks: DraftPick[], pla
       const scarcity = player.position === 'TE' ? 6 : player.position === 'RB' ? 5 : player.position === 'WR' ? 3 : 0
       const lateOnlyPenalty = (player.position === 'K' || player.position === 'D/ST') && currentRound < rounds - 2 ? 65 : 0
       const qbPenalty = player.position === 'QB' && roster.some((item) => item.position === 'QB') ? 28 : 0
-      const value = Math.max(-25, player.adp - currentPick) * 1.15
+      const value = adpDraftValue(player.adp, currentPick)
       const needBoost = Math.min(28, need * 9)
       const scoringBoost = player.position === 'WR' && settings.scoring === 'PPR' ? 5 : player.position === 'WR' && settings.scoring === 'Half PPR' ? 2.5 : player.position === 'RB' && settings.scoring === 'Standard' ? 5 : 0
       const score = 180 - player.adp + value + needBoost + scarcity + scoringBoost - lateOnlyPenalty - qbPenalty

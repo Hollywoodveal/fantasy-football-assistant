@@ -23,6 +23,7 @@ Let a fantasy manager reorganize the available-player board for quick draft-day 
 - The visible order number reflects the active board order.
 - Sorting does not modify imported rankings, picks, favorites, notes, or the recommendation card.
 - Every comparison uses a deterministic tie-breaker to avoid row jitter.
+- Recommendation value rewards players who fall past their ADP and penalizes reaching far ahead of ADP.
 
 ## Completion criteria
 
