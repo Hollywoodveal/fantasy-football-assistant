@@ -54,6 +54,7 @@
   background: linear-gradient(145deg, rgba(13, 35, 54, 0.96), rgba(7, 23, 37, 0.98));
   box-shadow: var(--shadow);
   padding: clamp(24px, 4vw, 48px);
+  color: var(--text);
 }
 
 .draft-setup__intro {
@@ -239,6 +240,7 @@
   background: linear-gradient(135deg, var(--surface-strong), var(--surface));
   padding: 24px;
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.18);
+  color: var(--text);
 }
 .draft-recommendation.is-my-turn { border-color: rgba(184, 255, 57, 0.54); box-shadow: 0 0 0 1px rgba(184, 255, 57, 0.08), 0 18px 48px rgba(0, 0, 0, 0.2); }
 .draft-recommendation__identity { display: flex; align-items: center; gap: 16px; }
@@ -1497,6 +1499,15 @@ textarea:focus-visible {
 
 .dialog {
   position: relative;
+  --bg-deep: #030b12;
+  --surface: #0a1c2c;
+  --surface-strong: #0d2336;
+  --surface-soft: #10283d;
+  --border: #254057;
+  --border-soft: rgba(105, 140, 169, 0.24);
+  --text: #f6f9fb;
+  --muted: #93a8bc;
+  --muted-strong: #b3c2cf;
   width: min(100%, 580px);
   max-height: min(820px, calc(100vh - 56px));
   overflow: auto;
@@ -1505,6 +1516,7 @@ textarea:focus-visible {
   background: linear-gradient(150deg, #0d2539, #071621 68%);
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.55);
   padding: 32px;
+  color: var(--text);
   animation: dialog-up 220ms ease;
 }
 
