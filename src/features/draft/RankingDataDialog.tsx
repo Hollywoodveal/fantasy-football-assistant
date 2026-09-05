@@ -68,12 +68,21 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
 
   return (
     <div className="dialog-backdrop ranking-dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="dialog ranking-dialog" role="dialog" aria-modal="true" aria-labelledby="ranking-dialog-title">
-        <button className="dialog__close" type="button" onClick={onClose} aria-label="Close"><X aria-hidden="true" /></button>
+      <section
+        className="dialog ranking-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ranking-dialog-title"
+        aria-describedby="ranking-dialog-description"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose()
+        }}
+      >
+        <button className="dialog__close" type="button" onClick={onClose} aria-label="Close rankings" autoFocus><X aria-hidden="true" /></button>
         <span className="dialog__icon dialog__icon--blue"><Database aria-hidden="true" /></span>
-        <p className="dialog__context">Phase 2.3 · Live player data</p>
+        <p className="dialog__context">Phase 2.3.2 · Draft-day ready</p>
         <h2 id="ranking-dialog-title">Manage your draft rankings</h2>
-        <p className="dialog__intro">Refresh current player status, then combine it with rankings from your preferred provider. Your ranking file stays in this browser.</p>
+        <p className="dialog__intro" id="ranking-dialog-description">Refresh current player status, then combine it with rankings from your preferred provider. Your ranking file stays in this browser.</p>
 
         <section className="live-data-card" aria-labelledby="live-data-title">
           <div className="live-data-card__heading">
@@ -89,7 +98,7 @@ export function RankingDataDialog({ current, picksCount, requiredPlayers, onClos
               <span><small>Checked</small><strong>{new Date(current.liveData.refreshedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong></span>
             </div>
           ) : <p className="live-data-card__empty">Refresh to verify teams, availability, and injury designations. Rankings, ADP, and projections are never replaced.</p>}
-          {liveRefreshMessage && <p className={`live-data-message is-${liveRefreshState}`} role="status">{liveRefreshMessage}</p>}
+          {liveRefreshMessage && <p className={`live-data-message is-${liveRefreshState}`} role={liveRefreshState === 'error' ? 'alert' : 'status'}>{liveRefreshMessage}</p>}
           <p className="live-data-card__boundary"><ShieldCheck aria-hidden="true" /> Sleeper supplies read-only player metadata for non-commercial use. Your selected ranking source remains authoritative.</p>
         </section>
 

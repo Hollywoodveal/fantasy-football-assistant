@@ -86,12 +86,18 @@ export function mergeLivePlayerData(dataSet: DraftDataSet, response: LivePlayerD
 }
 
 export async function refreshLivePlayerData(dataSet: DraftDataSet, signal?: AbortSignal) {
-  const response = await fetch(LIVE_DATA_PATH, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
-    signal,
-  })
+  let response: Response
+  try {
+    response = await fetch(LIVE_DATA_PATH, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error
+    throw new Error('Live player data is temporarily unavailable. Your saved rankings are still available.')
+  }
   const payload: unknown = await response.json().catch(() => null)
   if (!response.ok) {
     const message = payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string'

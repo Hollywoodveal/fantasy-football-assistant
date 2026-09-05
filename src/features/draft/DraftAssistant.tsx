@@ -84,7 +84,7 @@ function DraftSetup({ initial, hasDraft, onStart, onBack }: { initial: DraftSett
         <div className="draft-setup__intro">
           <span className="section-icon section-icon--lime"><Settings2 aria-hidden="true" /></span>
           <div>
-            <p className="draft-kicker">Phase 2.3 · Live Player Data</p>
+            <p className="draft-kicker">Phase 2.3.2 · Draft-Day Ready</p>
             <h1 id="draft-setup-title">Set up your draft</h1>
             <p>Tell us how your ESPN league drafts. You can start before you have a roster and adjust these settings later.</p>
           </div>
@@ -150,6 +150,7 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [tier, setTier] = useState<number | 'ALL'>('ALL')
   const autoRefreshAttempted = useRef(false)
+  const resetTimer = useRef<number | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -170,6 +171,10 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
     }).catch(() => undefined)
     return () => controller.abort()
   }, [dataSet])
+
+  useEffect(() => () => {
+    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current)
+  }, [])
 
   const settings = session?.settings
   const picks = useMemo(() => session?.picks ?? [], [session?.picks])
@@ -218,9 +223,14 @@ export function DraftAssistant({ leagueName, teamName, scoring, onBack, onToast 
   const resetDraft = () => {
     if (!resetArmed) {
       setResetArmed(true)
-      window.setTimeout(() => setResetArmed(false), 4000)
+      resetTimer.current = window.setTimeout(() => {
+        setResetArmed(false)
+        resetTimer.current = null
+      }, 4000)
       return
     }
+    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current)
+    resetTimer.current = null
     clearDraftSession()
     setSession(null)
     setShowSetup(true)

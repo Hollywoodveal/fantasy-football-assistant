@@ -6,7 +6,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 2. Set the strongest weekly lineup.
 3. Find the best available waiver-wire upgrades.
 
-Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, and Phase 2.3 adds a cached server-side live player-metadata foundation; the interface does not sign in to or write to ESPN.
+Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, and Phase 2.3.2 hardens the complete draft-day flow; the interface does not sign in to or write to ESPN.
 
 ## Phase 0 includes
 
@@ -77,6 +77,15 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Manual refresh, coverage feedback, source labels, and graceful provider-error states
 - A versioned local data migration that preserves existing Phase 2.1 and 2.2 imports
 
+## Phase 2.3.2 includes
+
+- Standard-laptop recommendation layout containment with usable primary draft actions
+- Forty-eight-pixel mobile draft-room toolbar targets
+- Keyboard-accessible rankings dialog behavior and clearer assistive descriptions
+- Safe guarded-reset timer cleanup
+- Friendly live-data network failure messaging that protects saved rankings
+- A documented desktop, mobile, first-run, import, persistence, and failure-state QA matrix
+
 ## Local development
 
 ```bash
@@ -116,4 +125,4 @@ The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serve
 - A licensed ranking/projection provider will be selected before server-supplied real rankings are introduced.
 - Recommendations will remain advisory until an authorized league write integration is available.
 
-See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, and [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary.
+See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, and [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA.
