@@ -533,6 +533,10 @@
   .draft-progress { grid-column: 2 / 4; grid-row: 2; }
 }
 
+@media (max-width: 1500px) {
+  .draft-intelligence { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 980px) {
   .draft-room__layout { grid-template-columns: 1fr; }
   .draft-sidebar { grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); }
