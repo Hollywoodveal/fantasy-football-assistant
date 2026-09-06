@@ -20,12 +20,16 @@ type EspnRosterEntry = {
   }
 }
 
-type EspnTeam = {
+export type EspnTeam = {
   id?: number
   name?: string
   location?: string
   nickname?: string
   abbreviation?: string
+  waiverRank?: number
+  transactionCounter?: {
+    acquisitionBudgetSpent?: number
+  }
   roster?: {
     entries?: EspnRosterEntry[]
   }
@@ -40,6 +44,10 @@ export type EspnLeagueDocument = {
     size?: number
     scoringSettings?: {
       scoringItems?: EspnScoringItem[]
+    }
+    acquisitionSettings?: {
+      isUsingAcquisitionBudget?: boolean
+      acquisitionBudget?: number
     }
   }
   teams?: EspnTeam[]

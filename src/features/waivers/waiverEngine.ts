@@ -1,6 +1,7 @@
 import type { DraftPlayer } from '../draft/types.ts'
 import type { ImportedPlayer, PlayerPosition, ScoringFormat } from '../league/types.ts'
 import { enrichRoster, type LineupPlayer } from '../lineup/lineupEngine.ts'
+import type { EspnRosteredPlayer, WaiverClaimRules } from './waiverAvailability.ts'
 
 export const waiverPositions = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'D/ST'] as const
 export type WaiverPositionFilter = (typeof waiverPositions)[number]
@@ -19,13 +20,28 @@ export type WaiverRecommendation = {
   score: number
   priority: WaiverPriority
   safeDrop: boolean
-  availability: 'unverified'
+  availability: 'unverified' | 'verified-unrostered'
   reasons: string[]
 }
 
 type WaiverBoardOptions = {
   scoring?: ScoringFormat
   rosterCapacity?: number
+  availability?: {
+    refreshedAt: string
+    teamCount: number
+    rosteredPlayers: Pick<EspnRosteredPlayer, 'name' | 'position' | 'nflTeam'>[]
+  }
+}
+
+export type WaiverClaimPlanItem = {
+  order: number
+  recommendation: WaiverRecommendation
+  role: 'primary' | 'backup'
+  backupFor: number | null
+  suggestedBid: number | null
+  bidPercent: number | null
+  strategyLabel: string
 }
 
 const minimumPositionCounts: Record<PlayerPosition, number> = {
@@ -107,6 +123,7 @@ function recommendationReasons(
   floorGain: number,
   riskImprovement: number,
   hasOpenRosterSpot: boolean,
+  availability: WaiverBoardOptions['availability'],
 ) {
   const reasons = [
     `${candidate.projectedPoints.toFixed(1)}-point local weekly estimate with a ${candidate.floorPoints.toFixed(1)}–${candidate.ceilingPoints.toFixed(1)} modeled range.`,
@@ -123,8 +140,25 @@ function recommendationReasons(
     reasons.push('No safe drop was found without cutting below a required position minimum.')
   }
 
-  reasons.push('Availability is unverified; confirm the player is a free agent in ESPN before acting.')
+  if (availability) {
+    const checkedAt = new Date(availability.refreshedAt).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'UTC',
+      timeZoneName: 'short',
+    })
+    reasons.push(`Verified unrostered across ${availability.teamCount} ESPN teams at ${checkedAt}. Recheck ESPN before submitting because league rosters can change.`)
+  } else {
+    reasons.push('Availability is unverified; confirm the player is a free agent in ESPN before acting.')
+  }
   return reasons
+}
+
+function playerKey(player: Pick<ImportedPlayer, 'name' | 'position'> & { nflTeam?: string }) {
+  if (player.position === 'D/ST' && player.nflTeam && player.nflTeam !== 'FA') return `dst:${player.nflTeam.toUpperCase()}`
+  return `${normalizePlayerName(player.name)}:${player.position}`
 }
 
 export function buildWaiverBoard(
@@ -136,12 +170,14 @@ export function buildWaiverBoard(
   const rosterCapacity = options.rosterCapacity ?? 15
   const activeRoster = enrichRoster(roster.filter((player) => player.slot !== 'IR'), scoring)
   const rosterNames = new Set(roster.map((player) => normalizePlayerName(player.name)))
+  const leagueRosteredPlayers = new Set(options.availability?.rosteredPlayers.map(playerKey) ?? [])
   const hasOpenRosterSpot = roster.filter((player) => player.slot !== 'IR').length < rosterCapacity
   const projectedCandidates = candidates.map((player, index) => rankingProjectionFallback(player, index + 1))
 
   const enrichedCandidates = enrichRoster(
     projectedCandidates
       .filter((player) => !rosterNames.has(normalizePlayerName(player.name)))
+      .filter((player) => !leagueRosteredPlayers.has(playerKey(player)))
       .map(asRosterPlayer),
     scoring,
     [],
@@ -195,8 +231,8 @@ export function buildWaiverBoard(
         score,
         priority,
         safeDrop,
-        availability: 'unverified' as const,
-        reasons: recommendationReasons(candidate, drop, comparison, projectedGain, floorGain, riskImprovement, hasOpenRosterSpot),
+        availability: options.availability ? 'verified-unrostered' as const : 'unverified' as const,
+        reasons: recommendationReasons(candidate, drop, comparison, projectedGain, floorGain, riskImprovement, hasOpenRosterSpot, options.availability),
       }
     })
     .sort((first, second) => second.score - first.score
@@ -204,6 +240,68 @@ export function buildWaiverBoard(
       || first.sourceRank - second.sourceRank
       || first.candidate.name.localeCompare(second.candidate.name))
     .map((recommendation, index) => ({ ...recommendation, rank: index + 1 }))
+}
+
+const clamp = (value: number, minimum: number, maximum: number) => Math.min(maximum, Math.max(minimum, value))
+
+function suggestedFaabPercent(recommendation: WaiverRecommendation) {
+  const priorityBase = recommendation.priority === 'priority' ? 14 : recommendation.priority === 'upgrade' ? 7 : 2
+  const gainBonus = clamp(Math.round(Math.max(0, recommendation.projectedGain) / 2), 0, 10)
+  const riskAdjustment = recommendation.candidate.riskLevel === 'low'
+    ? 2
+    : recommendation.candidate.riskLevel === 'high' ? -2 : 0
+  return clamp(priorityBase + gainBonus + riskAdjustment, 1, 35)
+}
+
+export function buildClaimStrategy(
+  board: WaiverRecommendation[],
+  shortlistIds: string[],
+  claimRules: WaiverClaimRules = { mode: 'priority' },
+): WaiverClaimPlanItem[] {
+  const selectedIds = new Set(shortlistIds)
+  const selected = board.filter((recommendation) => selectedIds.has(recommendation.candidate.id))
+  const primaryBySwap = new Map<string, number>()
+
+  return selected.map((recommendation, index) => {
+    const order = index + 1
+    const swapKey = recommendation.drop
+      ? `drop:${recommendation.drop.id}`
+      : 'open:roster-spot'
+    const existingPrimary = primaryBySwap.get(swapKey)
+    const role = existingPrimary === undefined ? 'primary' as const : 'backup' as const
+    if (existingPrimary === undefined) primaryBySwap.set(swapKey, order)
+
+    if (claimRules.mode === 'faab') {
+      const bidPercent = suggestedFaabPercent(recommendation)
+      const remaining = claimRules.budgetRemaining
+      const suggestedBid = remaining === undefined
+        ? null
+        : remaining <= 0 ? 0 : Math.max(1, Math.round(remaining * bidPercent / 100))
+      return {
+        order,
+        recommendation,
+        role,
+        backupFor: existingPrimary ?? null,
+        suggestedBid,
+        bidPercent,
+        strategyLabel: suggestedBid === null
+          ? `${bidPercent}% of remaining FAAB`
+          : `$${suggestedBid} · ${bidPercent}% of $${remaining} remaining`,
+      }
+    }
+
+    return {
+      order,
+      recommendation,
+      role,
+      backupFor: existingPrimary ?? null,
+      suggestedBid: null,
+      bidPercent: null,
+      strategyLabel: claimRules.waiverRank
+        ? `Waiver priority #${claimRules.waiverRank} · submit in this order`
+        : 'Submit claims in this order',
+    }
+  })
 }
 
 export function filterWaiverBoard(

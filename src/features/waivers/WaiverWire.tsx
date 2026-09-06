@@ -1,27 +1,39 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Check,
   ClipboardList,
+  Clock3,
   Info,
+  ListOrdered,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
   Star,
   Target,
+  WalletCards,
 } from 'lucide-react'
 import { loadDraftDataSet } from '../draft/dataStorage'
 import type { LeagueProfile } from '../league/types'
 import { parseRosterText, sampleRosterText } from '../league/rosterParser'
 import {
   buildWaiverBoard,
+  buildClaimStrategy,
   filterWaiverBoard,
   waiverPositions,
   type WaiverPositionFilter,
   type WaiverRecommendation,
 } from './waiverEngine'
+import {
+  fetchWaiverAvailability,
+  loadWaiverAvailability,
+  saveWaiverAvailability,
+  type WaiverAvailabilityInput,
+  type WaiverAvailabilityResponse,
+} from './waiverAvailability'
 import { loadWaiverShortlist, saveWaiverShortlist } from './storage'
 
 const previewRoster = parseRosterText(sampleRosterText).players
@@ -37,9 +49,25 @@ type WaiverWireProps = {
 export function WaiverPreview({ profile, onOpen }: { profile: LeagueProfile | null; onOpen: () => void }) {
   const [dataSet] = useState(loadDraftDataSet)
   const roster = profile?.roster ?? previewRoster
+  const availability = useMemo(() => {
+    if (!profile?.sync) return null
+    const cached = loadWaiverAvailability({
+      leagueId: profile.leagueId,
+      season: profile.season,
+      teamId: profile.sync.teamId,
+    })
+    return cached && Date.now() - Date.parse(cached.refreshedAt) <= 15 * 60 * 1000 ? cached : null
+  }, [profile?.leagueId, profile?.season, profile?.sync])
   const recommendations = useMemo(
-    () => buildWaiverBoard(roster, dataSet.players, { scoring: profile?.scoring ?? dataSet.scoring }).slice(0, 3),
-    [dataSet.players, dataSet.scoring, profile?.scoring, roster],
+    () => buildWaiverBoard(roster, dataSet.players, {
+      scoring: profile?.scoring ?? dataSet.scoring,
+      availability: availability ? {
+        refreshedAt: availability.refreshedAt,
+        teamCount: availability.coverage.teams,
+        rosteredPlayers: availability.rosteredPlayers,
+      } : undefined,
+    }).slice(0, 3),
+    [availability, dataSet.players, dataSet.scoring, profile?.scoring, roster],
   )
 
   return (
@@ -61,7 +89,7 @@ export function WaiverPreview({ profile, onOpen }: { profile: LeagueProfile | nu
               <strong>{recommendation.candidate.name}</strong>
               <small>{recommendation.drop ? `over ${recommendation.drop.name}` : 'open roster spot'}</small>
             </span>
-            <span className="available">Check ESPN</span>
+            <span className="available">{recommendation.availability === 'verified-unrostered' ? 'ESPN verified' : 'Check ESPN'}</span>
             <strong className="gain">{gainLabel(recommendation.projectedGain)}</strong>
           </button>
         ))}
@@ -74,6 +102,15 @@ export function WaiverPreview({ profile, onOpen }: { profile: LeagueProfile | nu
 function gainLabel(value: number) {
   if (value > 0) return `+${value.toFixed(1)}`
   return value.toFixed(1)
+}
+
+function formatAvailabilityTime(value: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
 }
 
 function RecommendationCard({
@@ -97,7 +134,7 @@ function RecommendationCard({
         <span className="position-tag">{candidate.position}</span>
         <span className="waiver-candidate__player">
           <strong>{candidate.name}</strong>
-          <small>{candidate.nflTeam} · source rank {recommendation.sourceRank} · {candidate.projectionSource === 'ranking' ? 'ranking estimate' : 'local estimate'}</small>
+          <small>{candidate.nflTeam} · source rank {recommendation.sourceRank} · {candidate.projectionSource === 'ranking' ? 'ranking estimate' : 'local estimate'} · {recommendation.availability === 'verified-unrostered' ? 'ESPN verified' : 'unverified'}</small>
         </span>
         <span className={`waiver-priority waiver-priority--${recommendation.priority}`}>{recommendation.priority}</span>
         <span className="waiver-candidate__swap">
@@ -119,10 +156,64 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
   const [position, setPosition] = useState<WaiverPositionFilter>('ALL')
   const [upgradesOnly, setUpgradesOnly] = useState(true)
   const [shortlist, setShortlist] = useState<string[]>(loadWaiverShortlist)
+  const [availability, setAvailability] = useState<WaiverAvailabilityResponse | null>(null)
+  const [availabilityError, setAvailabilityError] = useState('')
+  const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false)
+  const [refreshVersion, setRefreshVersion] = useState(0)
+  const availabilityInput = useMemo<WaiverAvailabilityInput | null>(() => profile?.sync ? ({
+    leagueId: profile.leagueId,
+    season: profile.season,
+    teamId: profile.sync.teamId,
+  }) : null, [profile?.leagueId, profile?.season, profile?.sync])
+
+  useEffect(() => {
+    if (!availabilityInput) {
+      setAvailability(null)
+      setAvailabilityError('')
+      setIsAvailabilityLoading(false)
+      return
+    }
+
+    const cached = loadWaiverAvailability(availabilityInput)
+    setAvailability(cached)
+    setAvailabilityError('')
+    setIsAvailabilityLoading(true)
+    const controller = new AbortController()
+
+    fetchWaiverAvailability(availabilityInput, controller.signal, refreshVersion > 0)
+      .then((result) => {
+        setAvailability(result)
+        if (!saveWaiverAvailability(result)) onToast('ESPN availability was verified, but the snapshot could not be saved in this browser.')
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setAvailabilityError(error instanceof Error ? error.message : 'ESPN availability could not be verified.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsAvailabilityLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [availabilityInput, onToast, profile?.importedAt, refreshVersion])
+
+  const currentAvailability = availability
+    && availabilityInput
+    && availability.leagueId === availabilityInput.leagueId
+    && availability.season === availabilityInput.season
+    && availability.teamId === availabilityInput.teamId
+    ? availability
+    : null
 
   const board = useMemo(
-    () => buildWaiverBoard(roster, dataSet.players, { scoring: profile?.scoring ?? dataSet.scoring }),
-    [dataSet.players, dataSet.scoring, profile?.scoring, roster],
+    () => buildWaiverBoard(roster, dataSet.players, {
+      scoring: profile?.scoring ?? dataSet.scoring,
+      availability: currentAvailability ? {
+        refreshedAt: currentAvailability.refreshedAt,
+        teamCount: currentAvailability.coverage.teams,
+        rosteredPlayers: currentAvailability.rosteredPlayers,
+      } : undefined,
+    }),
+    [currentAvailability, dataSet.players, dataSet.scoring, profile?.scoring, roster],
   )
   const visible = useMemo(
     () => filterWaiverBoard(board, { search, position, upgradesOnly }),
@@ -134,9 +225,14 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
     ?? board.find((recommendation) => recommendation.candidate.id === selectedId)
     ?? board[0]
   const rosterHasOpenSpot = roster.filter((player) => player.slot !== 'IR').length < 15
+  const claimPlan = useMemo(
+    () => buildClaimStrategy(board, shortlist, currentAvailability?.claimRules),
+    [board, currentAvailability?.claimRules, shortlist],
+  )
 
   const toggleShortlist = (playerId: string) => {
-    const next = shortlist.includes(playerId)
+    const wasTargeted = shortlist.includes(playerId)
+    const next = wasTargeted
       ? shortlist.filter((id) => id !== playerId)
       : [...shortlist, playerId]
     if (!saveWaiverShortlist(next)) {
@@ -144,7 +240,21 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
       return
     }
     setShortlist(next)
-    onToast(shortlist.includes(playerId) ? 'Removed from the local claim plan.' : 'Added to the local claim plan. ESPN was not changed.')
+    onToast(wasTargeted ? 'Removed from the local claim plan.' : 'Added to the local claim plan. ESPN was not changed.')
+  }
+
+  const buildRecommendedPlan = () => {
+    const next = board.filter((recommendation) => recommendation.safeDrop && recommendation.priority !== 'watch').slice(0, 3).map((recommendation) => recommendation.candidate.id)
+    if (!next.length) {
+      onToast('No safe priority or upgrade claims are available for this roster.')
+      return
+    }
+    if (!saveWaiverShortlist(next)) {
+      onToast('The recommended claim plan could not be saved in this browser.')
+      return
+    }
+    setShortlist(next)
+    onToast('Recommended claim order saved locally. ESPN was not changed.')
   }
 
   return (
@@ -152,9 +262,9 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
       <header className="waiver-wire__hero">
         <button className="back-action" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back to dashboard</button>
         <div className="waiver-wire__hero-copy">
-          <p className="lineup-optimizer__eyebrow">Phase 4.1 · Waiver Wire Foundation</p>
+          <p className="lineup-optimizer__eyebrow">Phase 4.2 · Verified Waiver Availability &amp; Claim Strategy</p>
           <h1>Find your next roster upgrade</h1>
-          <p>Compare add/drop value, modeled range, roster needs, and risk before making a claim for {week}.</p>
+          <p>Verify unrostered players across your public ESPN league, compare add/drop value, and build an ordered claim strategy for {week}.</p>
         </div>
         <div className="lineup-optimizer__source" aria-label="Waiver candidate data source">
           <ClipboardList aria-hidden="true" />
@@ -171,11 +281,32 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
         </div>
       )}
 
+      <div className={`waiver-verification ${availabilityError ? 'waiver-verification--error' : currentAvailability ? 'waiver-verification--verified' : ''}`} role="status">
+        <span className="waiver-verification__icon">
+          {isAvailabilityLoading ? <RefreshCw className="is-spinning" aria-hidden="true" /> : currentAvailability ? <ShieldCheck aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
+        </span>
+        <div>
+          <strong>{currentAvailability
+            ? availabilityError
+              ? `Last verified snapshot covers ${currentAvailability.coverage.teams} ESPN rosters`
+              : `Verified unrostered across ${currentAvailability.coverage.teams} ESPN rosters`
+            : isAvailabilityLoading ? 'Checking every ESPN roster…' : profile?.sync ? 'ESPN verification unavailable' : 'Connect a public ESPN league to verify availability'}</strong>
+          <span>{currentAvailability
+            ? `${availabilityError ? `${availabilityError} · ` : ''}${currentAvailability.coverage.rosteredPlayers} rostered players excluded · checked ${formatAvailabilityTime(currentAvailability.refreshedAt)}`
+            : availabilityError || (profile?.sync ? 'The board remains usable with unverified labels.' : 'Until then, confirm each player inside ESPN before claiming.')}</span>
+        </div>
+        {profile?.sync && (
+          <button className="secondary-action" type="button" disabled={isAvailabilityLoading} onClick={() => setRefreshVersion((version) => version + 1)}>
+            <RefreshCw aria-hidden="true" /> {isAvailabilityLoading ? 'Checking' : 'Refresh ESPN'}
+          </button>
+        )}
+      </div>
+
       <div className="waiver-boundary" role="status">
         <ShieldCheck aria-hidden="true" />
         <div>
-          <strong>Read-only candidate analysis</strong>
-          <span>ESPN free-agent availability is not verified in Phase 4.1. Confirm every candidate in ESPN before claiming; this page never submits adds or drops.</span>
+          <strong>Read-only verification and claim planning</strong>
+          <span>A verified label means the player was absent from every roster in the latest public ESPN snapshot—not that waivers have cleared. Recheck ESPN before submitting; this app never submits adds, drops, bids, or claims.</span>
         </div>
       </div>
 
@@ -185,7 +316,7 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
             <div>
               <p className="lineup-optimizer__eyebrow">{selected.priority === 'priority' ? 'Priority target' : selected.priority === 'upgrade' ? 'Possible upgrade' : 'Watch list'}</p>
               <h2>{selected.candidate.name}</h2>
-              <span>{selected.candidate.position} · {selected.candidate.nflTeam} · availability unverified</span>
+              <span>{selected.candidate.position} · {selected.candidate.nflTeam} · {selected.availability === 'verified-unrostered' ? 'verified unrostered in latest ESPN snapshot' : 'availability unverified'}</span>
             </div>
             <button className={`secondary-action${shortlist.includes(selected.candidate.id) ? ' secondary-action--selected' : ''}`} type="button" onClick={() => toggleShortlist(selected.candidate.id)}>
               {shortlist.includes(selected.candidate.id) ? <Check aria-hidden="true" /> : <Star aria-hidden="true" />}
@@ -207,11 +338,50 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
         </section>
       )}
 
+      <section className="waiver-claim-plan panel" aria-labelledby="claim-plan-title">
+        <div className="panel__heading panel__heading--row">
+          <span className="section-icon section-icon--lime"><ListOrdered aria-hidden="true" /></span>
+          <div>
+            <h2 id="claim-plan-title">Claim strategy</h2>
+            <p>{currentAvailability?.claimRules.mode === 'faab'
+              ? `FAAB plan${currentAvailability.claimRules.budgetRemaining === undefined ? '' : ` · $${currentAvailability.claimRules.budgetRemaining} remaining`}`
+              : `Priority plan${currentAvailability?.claimRules.waiverRank ? ` · waiver position #${currentAvailability.claimRules.waiverRank}` : ''}`}</p>
+          </div>
+          {!claimPlan.length && <button className="secondary-action" type="button" onClick={buildRecommendedPlan}><Sparkles aria-hidden="true" /> Build recommended plan</button>}
+        </div>
+
+        {claimPlan.length ? (
+          <div className="waiver-claim-list">
+            {claimPlan.map((item) => (
+              <article className="waiver-claim" key={item.recommendation.candidate.id}>
+                <span className="waiver-claim__order">{item.order}</span>
+                <div className="waiver-claim__move">
+                  <strong>{item.recommendation.candidate.name}</strong>
+                  <span>Add {item.recommendation.candidate.position} · {item.recommendation.drop ? `drop ${item.recommendation.drop.name}` : 'no drop needed'}</span>
+                </div>
+                <span className={`waiver-claim__role waiver-claim__role--${item.role}`}>{item.role === 'backup' ? `Backup to #${item.backupFor}` : 'Primary'}</span>
+                <div className="waiver-claim__strategy">
+                  {currentAvailability?.claimRules.mode === 'faab' ? <WalletCards aria-hidden="true" /> : <ListOrdered aria-hidden="true" />}
+                  <span>{item.strategyLabel}</span>
+                  <small>{gainLabel(item.recommendation.projectedGain)} projected roster value</small>
+                </div>
+                <button className="waiver-claim__remove" type="button" onClick={() => toggleShortlist(item.recommendation.candidate.id)} aria-label={`Remove ${item.recommendation.candidate.name} from claim plan`}>Remove</button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="waiver-claim-empty">
+            <Star aria-hidden="true" />
+            <p><strong>No claims planned yet.</strong><span>Star candidates below or build a safe top-three plan. Suggested bids and order are advisory.</span></p>
+          </div>
+        )}
+      </section>
+
       <section className="waiver-board panel" aria-labelledby="waiver-board-title">
         <div className="panel__heading panel__heading--row">
           <span className="section-icon section-icon--lime"><Target aria-hidden="true" /></span>
-          <div><h2 id="waiver-board-title">Candidate board</h2><p>{visible.length} of {board.length} unrostered ranking candidates</p></div>
-          <span className="waiver-shortlist-count"><Star aria-hidden="true" /> {shortlist.length} planned</span>
+          <div><h2 id="waiver-board-title">Candidate board</h2><p>{visible.length} of {board.length} {currentAvailability ? 'ESPN-verified unrostered' : 'locally unrostered'} ranking candidates</p></div>
+          <span className="waiver-shortlist-count"><Star aria-hidden="true" /> {claimPlan.length} planned</span>
         </div>
 
         <div className="waiver-tools">

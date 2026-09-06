@@ -12,6 +12,10 @@ import {
   type EspnScoreboardDocument,
   type EspnWeeklyLeagueDocument,
 } from './features/lineup/weeklyIntelligence.ts'
+import {
+  parseEspnWaiverAvailability,
+  validateWaiverAvailabilityInput,
+} from './features/waivers/waiverAvailability.ts'
 
 type AssetBinding = {
   fetch(request: Request): Promise<Response>
@@ -54,12 +58,16 @@ const BROWSER_TTL_SECONDS = 900
 const LIVE_DATA_PATH = '/api/live-data'
 const ESPN_LEAGUE_PATH = '/api/espn/league'
 const ESPN_WEEKLY_PATH = '/api/espn/weekly-intelligence'
+const ESPN_WAIVER_PATH = '/api/espn/waiver-availability'
 const ESPN_CACHE_NAME = 'fantasy-assistant-espn-public-v1'
 const ESPN_WEEKLY_CACHE_NAME = 'fantasy-assistant-espn-weekly-v1'
+const ESPN_WAIVER_CACHE_NAME = 'fantasy-assistant-espn-waivers-v1'
 const ESPN_EDGE_TTL_SECONDS = 300
 const ESPN_BROWSER_TTL_SECONDS = 60
 const ESPN_WEEKLY_EDGE_TTL_SECONDS = 900
 const ESPN_WEEKLY_BROWSER_TTL_SECONDS = 180
+const ESPN_WAIVER_EDGE_TTL_SECONDS = 60
+const ESPN_WAIVER_BROWSER_TTL_SECONDS = 30
 
 const apiHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -238,6 +246,98 @@ async function handleEspnLeague(request: Request, context: WorkerContext) {
   }
 }
 
+async function handleEspnWaiverAvailability(request: Request, context: WorkerContext) {
+  const requestUrl = new URL(request.url)
+  let input: { leagueId: string; season: number; teamId: number }
+  try {
+    input = validateWaiverAvailabilityInput(
+      requestUrl.searchParams.get('leagueId'),
+      requestUrl.searchParams.get('season'),
+      requestUrl.searchParams.get('teamId'),
+    )
+  } catch (error) {
+    return jsonResponse({
+      code: 'invalid_waiver_availability',
+      message: error instanceof Error ? error.message : 'Choose a valid public ESPN league, team, and season.',
+    }, 400, { 'Cache-Control': 'no-store' })
+  }
+
+  const cache = await caches.open(ESPN_WAIVER_CACHE_NAME)
+  const cacheUrl = new URL(ESPN_WAIVER_PATH, request.url)
+  cacheUrl.search = new URLSearchParams({
+    leagueId: input.leagueId,
+    season: String(input.season),
+    teamId: String(input.teamId),
+  }).toString()
+  const cacheKey = new Request(cacheUrl, { method: 'GET' })
+  const forceRefresh = requestUrl.searchParams.get('refresh') === '1'
+  const cached = forceRefresh ? undefined : await cache.match(cacheKey)
+  if (cached) {
+    const headers = new Headers(cached.headers)
+    headers.set('Cache-Control', `public, max-age=${ESPN_WAIVER_BROWSER_TTL_SECONDS}`)
+    headers.set('X-Fantasy-Waiver-Cache', 'HIT')
+    return new Response(cached.body, { status: cached.status, headers })
+  }
+
+  let providerResponse: Response
+  try {
+    providerResponse = await fetch(buildEspnLeagueUrl(input.leagueId, input.season), {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Fantasy-Assistant/0.1 (read-only waiver availability)',
+      },
+    })
+  } catch {
+    return jsonResponse({
+      code: 'waiver_availability_unavailable',
+      message: 'ESPN roster availability could not be reached. Candidates remain visible with unverified labels.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  if (providerResponse.status === 401 || providerResponse.status === 403) {
+    return jsonResponse({
+      code: 'espn_private_league',
+      message: 'ESPN no longer exposes this league publicly. Candidates remain visible with unverified labels.',
+    }, 403, { 'Cache-Control': 'no-store' })
+  }
+  if (providerResponse.status === 404) {
+    return jsonResponse({
+      code: 'espn_league_not_found',
+      message: 'ESPN could not find this league for the selected season. Candidates remain unverified.',
+    }, 404, { 'Cache-Control': 'no-store' })
+  }
+  if (!providerResponse.ok) {
+    return jsonResponse({
+      code: 'waiver_availability_unavailable',
+      message: 'ESPN roster availability is temporarily unavailable. Candidates remain visible with unverified labels.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  try {
+    const document = await providerResponse.json() as EspnLeagueDocument
+    const payload = parseEspnWaiverAvailability(document, input)
+    const serialized = JSON.stringify(payload)
+    const cachedResponse = new Response(serialized, {
+      headers: { ...apiHeaders, 'Cache-Control': `public, max-age=${ESPN_WAIVER_EDGE_TTL_SECONDS}` },
+    })
+    context.waitUntil(cache.put(cacheKey, cachedResponse.clone()))
+    return new Response(serialized, {
+      headers: {
+        ...apiHeaders,
+        'Cache-Control': `public, max-age=${ESPN_WAIVER_BROWSER_TTL_SECONDS}`,
+        'X-Fantasy-Waiver-Cache': forceRefresh ? 'REFRESH' : 'MISS',
+      },
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unsupported ESPN roster response.'
+    return jsonResponse({
+      code: 'waiver_availability_invalid',
+      message: 'ESPN returned incomplete roster data. Candidates remain visible with unverified labels.',
+      detail,
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+}
+
 async function handleEspnWeeklyIntelligence(request: Request, context: WorkerContext) {
   const requestUrl = new URL(request.url)
   let input: { leagueId: string; season: number; week: number; teamId: number }
@@ -363,8 +463,12 @@ export default {
       if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
       return handleEspnWeeklyIntelligence(request, context)
     }
+    if (url.pathname === ESPN_WAIVER_PATH) {
+      if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
+      return handleEspnWaiverAvailability(request, context)
+    }
     if (url.pathname === '/api/health') {
-      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.4' }, 200, { 'Cache-Control': 'no-store' })
+      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '4.2' }, 200, { 'Cache-Control': 'no-store' })
     }
     if (url.pathname.startsWith('/api/')) return jsonResponse({ code: 'not_found', message: 'API route not found.' }, 404, { 'Cache-Control': 'no-store' })
     return environment.ASSETS.fetch(request)
