@@ -11,6 +11,7 @@ import {
   Info,
   RefreshCw,
   RotateCcw,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react'
 import { parseRosterText, sampleRosterText } from '../league/rosterParser'
@@ -61,7 +62,13 @@ function AssignmentRow({ assignment }: { assignment: LineupAssignment }) {
       <div className="lineup-assignment__player">
         <strong>{player?.name ?? 'Needs roster player'}</strong>
         <small>{player ? `${player.position} · ${player.nflTeam} · ${matchup}${gameState ? ` · ${gameState}` : kickoff ? ` · ${kickoff}` : ''}` : 'No eligible player is loaded'}</small>
-        {player && <span className="lineup-assignment__meta">{player.projectionSource === 'espn-weekly' ? `ESPN projection · ${player.confidence ?? 'medium'} confidence` : 'Local estimate fallback'}</span>}
+        {player && (
+          <div className="lineup-assignment__signals" title={player.decisionSummary}>
+            <span className={`lineup-signal lineup-signal--${player.riskLevel}`}>{player.riskLevel} risk · {player.riskScore}</span>
+            <span className={`lineup-signal lineup-signal--${player.matchupOutlook}`}>{player.matchupOutlook === 'unknown' ? 'outlook pending' : `${player.matchupOutlook} outlook`}</span>
+            <span className="lineup-range">{player.projectionSource === 'espn-weekly' ? `ESPN · ${player.confidence ?? 'medium'} confidence` : 'Local fallback'} · {player.floorPoints.toFixed(1)}–{player.ceilingPoints.toFixed(1)} range</span>
+          </div>
+        )}
       </div>
       {player && player.availability && !['active', 'unknown'].includes(player.availability) && <span className={`lineup-status lineup-status--${player.availability}`}>{player.availability}</span>}
       {player && <span className={`lineup-source lineup-source--${assignment.source}`}>{assignment.source}</span>}
@@ -83,15 +90,20 @@ function SummaryMetric({ label, value, accent = false }: { label: string; value:
 }
 
 function ChangeRow({ swap }: { swap: LineupOptimization['swaps'][number] }) {
+  const projectionChange = swap.gain > 0 ? `+${swap.gain.toFixed(1)} pts` : swap.gain < 0 ? `${swap.gain.toFixed(1)} pts` : 'Even proj.'
   return (
     <div className="lineup-change">
       <span className="position-tag">{swap.position}</span>
       <div className="lineup-change__players">
-        <strong>{swap.bench.name}</strong>
-        <span>{swap.starter ? `over ${swap.starter.name}` : `fills ${swap.slot}`}</span>
-        <small>{swap.reason}</small>
+        <strong>Start {swap.bench.name}</strong>
+        <span>{swap.starter ? `Sit ${swap.starter.name} · ${swap.slot}` : `Fill open ${swap.slot}`}</span>
+        <small className="lineup-change__reason">{swap.reason}</small>
+        <ul>{swap.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
       </div>
-      <strong className="gain">+{swap.gain.toFixed(1)} pts</strong>
+      <div className="lineup-change__result">
+        <strong className={swap.gain < 0 ? 'gain gain--tradeoff' : 'gain'}>{projectionChange}</strong>
+        <span>decision +{swap.decisionGain.toFixed(1)}</span>
+      </div>
     </div>
   )
 }
@@ -193,9 +205,9 @@ export function LineupOptimizer({ profile, week, onBack, onManageRoster, onToast
       <header className="lineup-optimizer__hero">
         <button className="back-action" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back to dashboard</button>
         <div className="lineup-optimizer__hero-copy">
-          <p className="lineup-optimizer__eyebrow">Phase 3.3 · Live weekly player intelligence</p>
+          <p className="lineup-optimizer__eyebrow">Phase 3.4 · Smarter start/sit recommendations</p>
           <h1>Set your strongest lineup</h1>
-          <p>Blend ESPN weekly projections, matchups, game status, and injury context into a legal lineup for {week}.</p>
+          <p>Compare projection, modeled floor and ceiling, matchup outlook, and availability risk before every start/sit decision for {week}.</p>
         </div>
         <div className="lineup-optimizer__source" aria-label={`${hasLiveData ? 'Live ESPN weekly data' : profile ? 'ESPN roster with local estimates' : 'Preview roster'} source`}>
           {hasLiveData ? <Activity aria-hidden="true" /> : <ClipboardCheck aria-hidden="true" />}
@@ -247,8 +259,12 @@ export function LineupOptimizer({ profile, week, onBack, onManageRoster, onToast
         </div>
         <div className="lineup-summary__metrics">
           <SummaryMetric label="Current" value={`${optimization.currentPoints.toFixed(1)} pts`} />
-          <SummaryMetric label="Optimized" value={`${optimization.optimizedPoints.toFixed(1)} pts`} accent />
-          <SummaryMetric label="Projected gain" value={`${optimization.projectedGain > 0 ? '+' : ''}${optimization.projectedGain.toFixed(1)} pts`} accent />
+          <SummaryMetric label="Recommended" value={`${optimization.optimizedPoints.toFixed(1)} pts`} accent />
+          <SummaryMetric label="Projection change" value={`${optimization.projectedGain > 0 ? '+' : ''}${optimization.projectedGain.toFixed(1)} pts`} accent={optimization.projectedGain >= 0} />
+        </div>
+        <div className="lineup-decision-lens" aria-label="Risk-adjusted lineup range">
+          <ShieldCheck aria-hidden="true" />
+          <div><strong>Risk-adjusted range</strong><span>Floor {optimization.currentFloor.toFixed(1)} → {optimization.optimizedFloor.toFixed(1)} · Ceiling {optimization.currentCeiling.toFixed(1)} → {optimization.optimizedCeiling.toFixed(1)} · Average risk {optimization.currentRisk} → {optimization.optimizedRisk}</span></div>
         </div>
         <div className="lineup-summary__actions">
           {!previewApplied ? (
@@ -266,11 +282,11 @@ export function LineupOptimizer({ profile, week, onBack, onManageRoster, onToast
             <span className="section-icon section-icon--lime"><ArrowRightLeft aria-hidden="true" /></span>
             <div>
               <h2 id="lineup-changes-title">Recommended changes</h2>
-              <p>{optimization.swaps.length ? `${optimization.swaps.length} move${optimization.swaps.length === 1 ? '' : 's'} improve the ${hasLiveData ? 'blended weekly' : 'local'} projection.` : 'No higher-projected bench move found.'}</p>
+              <p>{optimization.swaps.length ? `${optimization.swaps.length} move${optimization.swaps.length === 1 ? '' : 's'} improve the risk-adjusted start score.` : 'No stronger risk-adjusted bench move found.'}</p>
             </div>
           </div>
           <div className="lineup-change-list">
-            {optimization.swaps.length ? optimization.swaps.map((swap) => <ChangeRow key={swap.id} swap={swap} />) : <div className="lineup-empty-state"><Check aria-hidden="true" /><p>Your current starters are already the best available {hasLiveData ? 'weekly' : 'local'} projection.</p></div>}
+            {optimization.swaps.length ? optimization.swaps.map((swap) => <ChangeRow key={swap.id} swap={swap} />) : <div className="lineup-empty-state"><Check aria-hidden="true" /><p>Your current starters are already the strongest available risk-adjusted lineup.</p></div>}
           </div>
           <p className="lineup-boundary"><Info aria-hidden="true" /> ESPN access remains read-only. Previewing changes here never writes to your league.</p>
         </section>
@@ -296,7 +312,7 @@ export function LineupOptimizer({ profile, week, onBack, onManageRoster, onToast
         </section>
       )}
 
-      <p className="weekly-intelligence__footnote"><Clock3 aria-hidden="true" /> Live fields are advisory and may change before kickoff. Always confirm late injury news in ESPN.</p>
+      <p className="weekly-intelligence__footnote"><Clock3 aria-hidden="true" /> Ranges and risk scores are transparent decision aids, not provider projections. Matchup outlook compares ESPN's weekly projection with the app's neutral local baseline. Always confirm late injury news in ESPN.</p>
     </div>
   )
 }

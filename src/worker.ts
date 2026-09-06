@@ -364,7 +364,7 @@ export default {
       return handleEspnWeeklyIntelligence(request, context)
     }
     if (url.pathname === '/api/health') {
-      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.3' }, 200, { 'Cache-Control': 'no-store' })
+      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.4' }, 200, { 'Cache-Control': 'no-store' })
     }
     if (url.pathname.startsWith('/api/')) return jsonResponse({ code: 'not_found', message: 'API route not found.' }, 404, { 'Cache-Control': 'no-store' })
     return environment.ASSETS.fetch(request)
