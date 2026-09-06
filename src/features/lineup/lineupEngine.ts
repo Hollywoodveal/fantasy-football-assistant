@@ -97,8 +97,12 @@ function stableOffset(name: string) {
   return [...name].reduce((total, character) => (total * 31 + character.charCodeAt(0)) % 17, 0) / 10
 }
 
-function estimateWeeklyPoints(player: ImportedPlayer, scoring: ScoringFormat): Pick<LineupPlayer, 'projectedPoints' | 'projectionSource'> {
-  const ranking = draftPlayers.find((candidate) => normalizedName(candidate.name) === normalizedName(player.name))
+function estimateWeeklyPoints(
+  player: ImportedPlayer,
+  scoring: ScoringFormat,
+  rankingPool = draftPlayers,
+): Pick<LineupPlayer, 'projectedPoints' | 'projectionSource'> {
+  const ranking = rankingPool.find((candidate) => normalizedName(candidate.name) === normalizedName(player.name))
   if (ranking) {
     const scoringAdjustment = scoring === 'PPR' ? 0.25 : scoring === 'Standard' ? -0.2 : 0
     return {
@@ -200,10 +204,11 @@ export function enrichRoster(
   roster: ImportedPlayer[],
   scoring: ScoringFormat = 'PPR',
   weeklyIntelligence: WeeklyPlayerIntelligence[] = [],
+  rankingPool = draftPlayers,
 ): LineupPlayer[] {
   const intelligenceByPlayer = new Map(weeklyIntelligence.map((player) => [player.playerId, player]))
   return roster.map((player) => {
-    const estimate = estimateWeeklyPoints(player, scoring)
+    const estimate = estimateWeeklyPoints(player, scoring, rankingPool)
     const intelligence = intelligenceByPlayer.get(player.id)
     const unavailable = intelligence?.availability === 'out' || intelligence?.gameStatus === 'bye'
     const hasWeeklyProjection = intelligence?.projectedPoints !== undefined

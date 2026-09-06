@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
-  RefreshCw,
   Sparkles,
   Target,
   Trophy,
@@ -20,7 +19,7 @@ import {
 } from 'lucide-react'
 import { Brand } from './components/Brand'
 import { BottomNavigation, SideNavigation, type NavKey } from './components/Navigation'
-import { lineupMoves, waiverTargets } from './data/demo'
+import { lineupMoves } from './data/demo'
 import { LeagueSetupDialog } from './features/league/LeagueSetupDialog'
 import { LeagueStatus } from './features/league/LeagueStatus'
 import { fetchPublicEspnLeague, profileFromEspnLeague } from './features/league/espnSync'
@@ -28,8 +27,9 @@ import { loadLeagueProfile, saveLeagueProfile } from './features/league/storage'
 import type { LeagueProfile } from './features/league/types'
 import { DraftAssistant } from './features/draft/DraftAssistant'
 import { LineupOptimizer } from './features/lineup/LineupOptimizer'
+import { WaiverPreview, WaiverWire } from './features/waivers/WaiverWire'
 
-type DialogView = 'lineup' | 'waivers' | 'draft' | 'more' | 'help' | null
+type DialogView = 'lineup' | 'draft' | 'more' | 'help' | null
 type Theme = 'dark' | 'light'
 
 function App() {
@@ -134,7 +134,7 @@ function App() {
 
   const navigate = (key: NavKey) => {
     setActiveNav(key)
-    if (key === 'home' || key === 'draft' || key === 'lineup') {
+    if (key === 'home' || key === 'draft' || key === 'lineup' || key === 'waivers') {
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -255,6 +255,14 @@ function App() {
             onManageRoster={openLeagueSetup}
             onToast={setToast}
           />
+        ) : activeNav === 'waivers' ? (
+          <WaiverWire
+            profile={leagueProfile}
+            week={week}
+            onBack={() => navigate('home')}
+            onManageRoster={openLeagueSetup}
+            onToast={setToast}
+          />
         ) : (
         <div className="content-wrap">
           <section className="welcome" aria-labelledby="welcome-title">
@@ -328,31 +336,7 @@ function App() {
               </button>
             </section>
 
-            <section className="panel waiver-panel" id="waivers" aria-labelledby="waivers-title">
-              <div className="panel__heading panel__heading--row">
-                <span className="section-icon"><Target aria-hidden="true" /></span>
-                <h2 id="waivers-title">Top waiver targets</h2>
-                <button className="text-action" type="button" onClick={() => setDialog('waivers')}>View all <ChevronRight aria-hidden="true" /></button>
-              </div>
-              <div className="waiver-labels" aria-hidden="true">
-                <span>Rank</span><span>Player</span><span>Available</span><span>Proj. gain</span>
-              </div>
-              <div className="waiver-list">
-                {waiverTargets.slice(0, 3).map((target) => (
-                  <button className="waiver-row" type="button" key={target.id} onClick={() => setDialog('waivers')}>
-                    <strong className="rank">{target.rank}</strong>
-                    <span className="position-tag">{target.position}</span>
-                    <span className="player">
-                      <strong>{target.player}</strong>
-                      <small>{target.matchup}</small>
-                    </span>
-                    <span className="available">{target.available}%</span>
-                    <strong className="gain">+{target.gain.toFixed(1)} pts</strong>
-                  </button>
-                ))}
-              </div>
-              <button className="desktop-view-all text-action" type="button" onClick={() => setDialog('waivers')}>View all <ChevronRight aria-hidden="true" /></button>
-            </section>
+            <WaiverPreview profile={leagueProfile} onOpen={() => navigate('waivers')} />
 
             <section className="panel draft-panel" id="draft" aria-labelledby="draft-title">
               <span className="section-icon"><Trophy aria-hidden="true" /></span>
@@ -395,25 +379,6 @@ function App() {
                 <div className="dialog__note"><Zap aria-hidden="true" /><span>This previews the recommendation here. It does not change your ESPN lineup.</span></div>
                 <button className="primary-action" type="button" onClick={applyLineup}>{optimized ? 'Keep lineup optimized' : 'Apply to preview'} <ArrowRight aria-hidden="true" /></button>
                 {optimized && <button className="plain-action" type="button" onClick={() => { setOptimized(false); setDialog(null); setToast('Lineup preview reset.') }}>Reset preview</button>}
-              </>
-            )}
-
-            {dialog === 'waivers' && (
-              <>
-                <span className="dialog__icon dialog__icon--blue"><RefreshCw aria-hidden="true" /></span>
-                <p className="dialog__context">League-aware rankings</p>
-                <h2 id="dialog-title">Best available upgrades</h2>
-                <p className="dialog__intro">Ranked by expected improvement over your current roster, not by projection alone.</p>
-                <div className="waiver-detail-list">
-                  {waiverTargets.map((target) => (
-                    <div className="waiver-detail" key={target.id}>
-                      <strong className="rank">{target.rank}</strong>
-                      <span className="position-tag">{target.position}</span>
-                      <p><strong>{target.player}</strong><small>{target.reason}</small></p>
-                      <strong className="gain">+{target.gain.toFixed(1)}</strong>
-                    </div>
-                  ))}
-                </div>
               </>
             )}
 
