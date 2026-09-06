@@ -54,3 +54,46 @@ test('IR players are excluded and surfaced as a warning', () => {
   assert.equal(result.optimized.some((assignment) => assignment.player?.name === 'Injured Receiver'), false)
   assert.ok(result.warnings.some((warning) => warning.includes('IR player')))
 })
+
+test('ESPN weekly projections override estimates and exclude out players', () => {
+  const starter = player('Starter Receiver', 'WR', 'Starter')
+  const bench = player('Bench Receiver', 'WR', 'Bench')
+  const result = optimizeLineup([starter, bench], {
+    weeklyIntelligence: [
+      {
+        playerId: starter.id,
+        providerPlayerId: '1',
+        name: starter.name,
+        position: 'WR',
+        nflTeam: 'FA',
+        rosterSlot: 'Starter',
+        projectedPoints: 18.5,
+        injuryStatus: 'OUT',
+        availability: 'out',
+        gameStatus: 'scheduled',
+        confidence: 'high',
+      },
+      {
+        playerId: bench.id,
+        providerPlayerId: '2',
+        name: bench.name,
+        position: 'WR',
+        nflTeam: 'FA',
+        rosterSlot: 'Bench',
+        projectedPoints: 12.4,
+        injuryStatus: 'ACTIVE',
+        availability: 'active',
+        opponent: 'ATL',
+        homeAway: 'home',
+        gameStatus: 'scheduled',
+        confidence: 'high',
+      },
+    ],
+  })
+
+  assert.equal(result.current.find((assignment) => assignment.player?.id === starter.id)?.projectedPoints, 0)
+  assert.equal(result.optimized.some((assignment) => assignment.player?.id === starter.id), false)
+  assert.equal(result.optimized.some((assignment) => assignment.player?.id === bench.id), true)
+  assert.equal(result.swaps[0]?.reason, 'Higher ESPN weekly projection')
+  assert.ok(result.warnings.some((warning) => warning.includes('unavailable player')))
+})

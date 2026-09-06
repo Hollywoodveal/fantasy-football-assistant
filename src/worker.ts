@@ -4,6 +4,14 @@ import {
   validateEspnSyncInput,
   type EspnLeagueDocument,
 } from './features/league/espnSync.ts'
+import {
+  buildEspnScoreboardUrl,
+  buildEspnWeeklyLeagueUrl,
+  parseWeeklyIntelligence,
+  validateWeeklyIntelligenceInput,
+  type EspnScoreboardDocument,
+  type EspnWeeklyLeagueDocument,
+} from './features/lineup/weeklyIntelligence.ts'
 
 type AssetBinding = {
   fetch(request: Request): Promise<Response>
@@ -45,9 +53,13 @@ const CACHE_TTL_SECONDS = 86_400
 const BROWSER_TTL_SECONDS = 900
 const LIVE_DATA_PATH = '/api/live-data'
 const ESPN_LEAGUE_PATH = '/api/espn/league'
+const ESPN_WEEKLY_PATH = '/api/espn/weekly-intelligence'
 const ESPN_CACHE_NAME = 'fantasy-assistant-espn-public-v1'
+const ESPN_WEEKLY_CACHE_NAME = 'fantasy-assistant-espn-weekly-v1'
 const ESPN_EDGE_TTL_SECONDS = 300
 const ESPN_BROWSER_TTL_SECONDS = 60
+const ESPN_WEEKLY_EDGE_TTL_SECONDS = 900
+const ESPN_WEEKLY_BROWSER_TTL_SECONDS = 180
 
 const apiHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -226,6 +238,113 @@ async function handleEspnLeague(request: Request, context: WorkerContext) {
   }
 }
 
+async function handleEspnWeeklyIntelligence(request: Request, context: WorkerContext) {
+  const requestUrl = new URL(request.url)
+  let input: { leagueId: string; season: number; week: number; teamId: number }
+  try {
+    input = validateWeeklyIntelligenceInput(
+      requestUrl.searchParams.get('leagueId'),
+      requestUrl.searchParams.get('season'),
+      requestUrl.searchParams.get('week'),
+      requestUrl.searchParams.get('teamId'),
+    )
+  } catch (error) {
+    return jsonResponse({
+      code: 'invalid_weekly_intelligence',
+      message: error instanceof Error ? error.message : 'Choose a valid public ESPN league, team, season, and week.',
+    }, 400, { 'Cache-Control': 'no-store' })
+  }
+
+  const cache = await caches.open(ESPN_WEEKLY_CACHE_NAME)
+  const cacheUrl = new URL(ESPN_WEEKLY_PATH, request.url)
+  cacheUrl.search = new URLSearchParams({
+    leagueId: input.leagueId,
+    teamId: String(input.teamId),
+    season: String(input.season),
+    week: String(input.week),
+  }).toString()
+  const cacheKey = new Request(cacheUrl, { method: 'GET' })
+  const cached = await cache.match(cacheKey)
+  if (cached) {
+    const headers = new Headers(cached.headers)
+    headers.set('Cache-Control', `public, max-age=${ESPN_WEEKLY_BROWSER_TTL_SECONDS}`)
+    headers.set('X-Fantasy-Weekly-Cache', 'HIT')
+    return new Response(cached.body, { status: cached.status, headers })
+  }
+
+  let leagueResponse: Response
+  let scoreboardResponse: Response | null
+  try {
+    ;[leagueResponse, scoreboardResponse] = await Promise.all([
+      fetch(buildEspnWeeklyLeagueUrl(input.leagueId, input.season, input.week), {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Fantasy-Assistant/0.1 (read-only weekly intelligence)',
+        },
+      }),
+      fetch(buildEspnScoreboardUrl(input.season, input.week), {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Fantasy-Assistant/0.1 (read-only NFL schedule)',
+        },
+      }).catch(() => null),
+    ])
+  } catch {
+    return jsonResponse({
+      code: 'weekly_intelligence_unavailable',
+      message: 'ESPN weekly data could not be reached. Your saved roster and local estimates remain active.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  if (leagueResponse.status === 401 || leagueResponse.status === 403) {
+    return jsonResponse({
+      code: 'espn_private_league',
+      message: 'ESPN no longer exposes this league publicly. Local lineup estimates remain active.',
+    }, 403, { 'Cache-Control': 'no-store' })
+  }
+  if (leagueResponse.status === 404) {
+    return jsonResponse({
+      code: 'espn_league_not_found',
+      message: 'ESPN could not find this league for the selected season. Local lineup estimates remain active.',
+    }, 404, { 'Cache-Control': 'no-store' })
+  }
+  if (!leagueResponse.ok) {
+    return jsonResponse({
+      code: 'weekly_intelligence_unavailable',
+      message: 'ESPN weekly data is temporarily unavailable. Your saved roster and local estimates remain active.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  try {
+    const [league, scoreboard] = await Promise.all([
+      leagueResponse.json() as Promise<EspnWeeklyLeagueDocument>,
+      scoreboardResponse?.ok
+        ? scoreboardResponse.json() as Promise<EspnScoreboardDocument>
+        : Promise.resolve(undefined),
+    ])
+    const payload = parseWeeklyIntelligence(league, scoreboard, input)
+    const serialized = JSON.stringify(payload)
+    const cachedResponse = new Response(serialized, {
+      headers: { ...apiHeaders, 'Cache-Control': `public, max-age=${ESPN_WEEKLY_EDGE_TTL_SECONDS}` },
+    })
+    context.waitUntil(cache.put(cacheKey, cachedResponse.clone()))
+    return new Response(serialized, {
+      headers: {
+        ...apiHeaders,
+        'Cache-Control': `public, max-age=${ESPN_WEEKLY_BROWSER_TTL_SECONDS}`,
+        'X-Fantasy-Weekly-Cache': 'MISS',
+      },
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unsupported weekly ESPN response.'
+    return jsonResponse({
+      code: 'weekly_intelligence_invalid',
+      message: 'ESPN returned incomplete weekly data. Your saved roster and local estimates remain active.',
+      detail,
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+}
+
 export default {
   async fetch(request: Request, environment: WorkerEnvironment, context: WorkerContext) {
     const url = new URL(request.url)
@@ -240,8 +359,12 @@ export default {
       if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
       return handleEspnLeague(request, context)
     }
+    if (url.pathname === ESPN_WEEKLY_PATH) {
+      if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
+      return handleEspnWeeklyIntelligence(request, context)
+    }
     if (url.pathname === '/api/health') {
-      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.2' }, 200, { 'Cache-Control': 'no-store' })
+      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '3.3' }, 200, { 'Cache-Control': 'no-store' })
     }
     if (url.pathname.startsWith('/api/')) return jsonResponse({ code: 'not_found', message: 'API route not found.' }, 404, { 'Cache-Control': 'no-store' })
     return environment.ASSETS.fetch(request)

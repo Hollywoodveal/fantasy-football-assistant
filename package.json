@@ -12,6 +12,7 @@
     "test:recommendations": "node --experimental-strip-types --test scripts/recommendation-score.test.mjs scripts/draft-intelligence.test.mjs scripts/recommendation-engine.test.mjs",
     "test:lineup": "node --experimental-strip-types --test scripts/lineup-optimizer.test.mjs",
     "test:espn": "node --experimental-strip-types --test scripts/espn-sync.test.mjs",
+    "test:weekly": "node --experimental-strip-types --test scripts/weekly-intelligence.test.mjs",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {

@@ -1,5 +1,6 @@
 import { draftPlayers } from '../draft/players.ts'
 import type { ImportedPlayer, PlayerPosition, ScoringFormat } from '../league/types'
+import type { WeeklyPlayerIntelligence } from './weeklyIntelligence.ts'
 
 export const lineupSlots = ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'D/ST', 'K'] as const
 export type LineupSlot = (typeof lineupSlots)[number]
@@ -8,7 +9,16 @@ export type AssignmentSource = 'starter' | 'bench' | 'empty'
 
 export type LineupPlayer = ImportedPlayer & {
   projectedPoints: number
-  projectionSource: 'ranking' | 'estimate'
+  projectionSource: 'espn-weekly' | 'ranking' | 'estimate'
+  actualPoints?: number
+  injuryStatus?: string
+  availability?: WeeklyPlayerIntelligence['availability']
+  opponent?: string
+  homeAway?: WeeklyPlayerIntelligence['homeAway']
+  kickoff?: string
+  gameStatus?: WeeklyPlayerIntelligence['gameStatus']
+  confidence?: WeeklyPlayerIntelligence['confidence']
+  unavailable: boolean
 }
 
 export type LineupAssignment = {
@@ -70,8 +80,35 @@ function estimateWeeklyPoints(player: ImportedPlayer, scoring: ScoringFormat): P
   }
 }
 
-export function enrichRoster(roster: ImportedPlayer[], scoring: ScoringFormat = 'PPR'): LineupPlayer[] {
-  return roster.map((player) => ({ ...player, ...estimateWeeklyPoints(player, scoring) }))
+export function enrichRoster(
+  roster: ImportedPlayer[],
+  scoring: ScoringFormat = 'PPR',
+  weeklyIntelligence: WeeklyPlayerIntelligence[] = [],
+): LineupPlayer[] {
+  const intelligenceByPlayer = new Map(weeklyIntelligence.map((player) => [player.playerId, player]))
+  return roster.map((player) => {
+    const estimate = estimateWeeklyPoints(player, scoring)
+    const intelligence = intelligenceByPlayer.get(player.id)
+    const unavailable = intelligence?.availability === 'out' || intelligence?.gameStatus === 'bye'
+    const hasWeeklyProjection = intelligence?.projectedPoints !== undefined
+    return {
+      ...player,
+      ...estimate,
+      ...(intelligence ? {
+        actualPoints: intelligence.actualPoints,
+        injuryStatus: intelligence.injuryStatus,
+        availability: intelligence.availability,
+        opponent: intelligence.opponent,
+        homeAway: intelligence.homeAway,
+        kickoff: intelligence.kickoff,
+        gameStatus: intelligence.gameStatus,
+        confidence: intelligence.confidence,
+      } : {}),
+      projectedPoints: unavailable ? 0 : hasWeeklyProjection ? intelligence.projectedPoints as number : estimate.projectedPoints,
+      projectionSource: hasWeeklyProjection ? 'espn-weekly' : estimate.projectionSource,
+      unavailable,
+    }
+  })
 }
 
 function supportsSlot(player: LineupPlayer, slot: LineupSlot) {
@@ -142,21 +179,27 @@ function findSwaps(current: LineupAssignment[], optimized: LineupAssignment[]) {
       starter: previous?.player ?? null,
       bench: player,
       gain,
-      reason: previous?.player ? 'Higher local projection' : 'Fills an open lineup slot',
+      reason: previous?.player
+        ? player.projectionSource === 'espn-weekly' ? 'Higher ESPN weekly projection' : 'Higher local projection'
+        : 'Fills an open lineup slot',
     }]
   })
 }
 
 export function optimizeLineup(
   roster: ImportedPlayer[],
-  options: { scoring?: ScoringFormat; rosterSource?: LineupRosterSource } = {},
+  options: {
+    scoring?: ScoringFormat
+    rosterSource?: LineupRosterSource
+    weeklyIntelligence?: WeeklyPlayerIntelligence[]
+  } = {},
 ): LineupOptimization {
   const scoring = options.scoring ?? 'PPR'
   const rosterSource = options.rosterSource ?? 'espn'
-  const players = enrichRoster(roster.filter((player) => player.slot !== 'IR'), scoring)
+  const players = enrichRoster(roster.filter((player) => player.slot !== 'IR'), scoring, options.weeklyIntelligence)
   const starters = players.filter((player) => player.slot === 'Starter')
   const current = bestLineup(starters)
-  const optimized = bestLineup(players)
+  const optimized = bestLineup(players.filter((player) => !player.unavailable))
   const swaps = findSwaps(current, optimized)
   const warnings: string[] = []
 
@@ -166,6 +209,13 @@ export function optimizeLineup(
 
   const irCount = roster.filter((player) => player.slot === 'IR').length
   if (irCount > 0) warnings.push(`${irCount} IR ${irCount === 1 ? 'player is' : 'players are'} excluded from this week's optimizer.`)
+  const outCount = players.filter((player) => player.availability === 'out').length
+  if (outCount > 0) warnings.push(`${outCount} unavailable ${outCount === 1 ? 'player is' : 'players are'} excluded from the optimized lineup.`)
+  const byeCount = players.filter((player) => player.gameStatus === 'bye').length
+  if (byeCount > 0) warnings.push(`${byeCount} ${byeCount === 1 ? 'player has' : 'players have'} a bye and ${byeCount === 1 ? 'is' : 'are'} excluded from the optimized lineup.`)
+  players
+    .filter((player) => player.availability === 'questionable' || player.availability === 'doubtful')
+    .forEach((player) => warnings.push(`${player.name} is ${player.availability}; verify status before kickoff.`))
   if (roster.length === 0) warnings.push('No roster players are loaded yet. Import an ESPN-compatible roster to replace this preview.')
 
   const currentPoints = assignmentPoints(current)
