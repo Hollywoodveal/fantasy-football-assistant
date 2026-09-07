@@ -13,7 +13,7 @@
     "test:lineup": "node --experimental-strip-types --test scripts/lineup-optimizer.test.mjs",
     "test:espn": "node --experimental-strip-types --test scripts/espn-sync.test.mjs",
     "test:weekly": "node --experimental-strip-types --test scripts/weekly-intelligence.test.mjs",
-    "test:waivers": "node --experimental-strip-types --test scripts/waiver-engine.test.mjs scripts/waiver-availability.test.mjs",
+    "test:waivers": "node --experimental-strip-types --test scripts/waiver-engine.test.mjs scripts/waiver-availability.test.mjs scripts/waiver-context.test.mjs",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {

@@ -6,7 +6,7 @@ A mobile-first fantasy-football PWA designed to help users make three decisions 
 2. Set the strongest weekly lineup.
 3. Find the best available waiver-wire upgrades.
 
-Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, Phase 2.4 added local ESPN Top 300 PDF import, Phase 2.4.1 added flexible player sorting, Phase 2.5 adds transparent draft intelligence, and Phase 3.1 adds the first weekly lineup optimizer foundation; the interface does not sign in to or write to ESPN. Phase 3.2 adds read-only public ESPN league and roster syncing, Phase 3.3 adds live weekly player intelligence, Phase 3.4 adds transparent risk-adjusted start/sit recommendations, Phase 4.1 adds the waiver-wire foundation, and Phase 4.2 adds public ESPN roster verification plus local claim strategy.
+Phase 0 established the product foundation and Cloudflare-ready interactive dashboard. Phase 1 added a privacy-safe ESPN-compatible league setup and roster import. Phase 2 adds a local-first live draft assistant that works before the user has a roster. Phase 2.1 introduced custom rankings, Phase 2.2 added provider-friendly mapping and board personalization, Phase 2.3 added a cached server-side live player-metadata foundation, Phase 2.3.2 hardened the complete draft-day flow, Phase 2.4 added local ESPN Top 300 PDF import, Phase 2.4.1 added flexible player sorting, Phase 2.5 adds transparent draft intelligence, and Phase 3.1 adds the first weekly lineup optimizer foundation; the interface does not sign in to or write to ESPN. Phase 3.2 adds read-only public ESPN league and roster syncing, Phase 3.3 adds live weekly player intelligence, Phase 3.4 adds transparent risk-adjusted start/sit recommendations, Phase 4.1 adds the waiver-wire foundation, Phase 4.2 adds public ESPN roster verification plus local claim strategy, and Phase 4.3 adds matchup-aware recommendation purposes, candidate comparison, freshness warnings, and purpose-aware FAAB guidance.
 
 ## Phase 0 includes
 
@@ -172,6 +172,15 @@ Phase 0 established the product foundation and Cloudflare-ready interactive dash
 - Bounded FAAB bid suggestions or waiver-priority guidance using ESPN-exposed league settings
 - Explicit read-only boundaries: no adds, drops, bids, or claims are submitted to ESPN
 
+## Phase 4.3 includes
+
+- Start-now, depth-upgrade, stash, streamer, and avoid-now recommendation purposes
+- Read-only selected-week NFL opponent, home/away, kickoff, and game-status context
+- Sleeper-backed injury/status adjustments with safe missing-data fallbacks
+- Two-player side-by-side comparison for projection, range, roster lift, matchup, and risk
+- Purpose-aware but bounded FAAB guidance plus stale ESPN snapshot warnings
+- Transparent explanations for immediate help, depth value, streaming use, and future stashes
+
 ## Local development
 
 ```bash
@@ -215,4 +224,4 @@ The included `wrangler.jsonc` enables Cloudflare Workers Static Assets and serve
 - A licensed ranking/projection provider will be selected before server-supplied real rankings are introduced.
 - Recommendations will remain advisory until an authorized league write integration is available.
 
-See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic, [docs/PHASE_3_1.md](docs/PHASE_3_1.md) for the weekly optimizer foundation, [docs/PHASE_3_2.md](docs/PHASE_3_2.md) for public ESPN league sync, [docs/PHASE_3_3.md](docs/PHASE_3_3.md) for live weekly player intelligence, [docs/PHASE_3_4.md](docs/PHASE_3_4.md) for smarter start/sit recommendations, [docs/PHASE_4_1.md](docs/PHASE_4_1.md) for the waiver wire foundation, and [docs/PHASE_4_2.md](docs/PHASE_4_2.md) for verified waiver availability and claim strategy.
+See [docs/PHASE_0.md](docs/PHASE_0.md) for the product foundation, [docs/PHASE_1.md](docs/PHASE_1.md) for league-import architecture, [docs/PHASE_2.md](docs/PHASE_2.md) for the draft assistant, [docs/PHASE_2_2.md](docs/PHASE_2_2.md) for smart import, [docs/PHASE_2_3.md](docs/PHASE_2_3.md) for the live-data boundary, [docs/PHASE_2_3_2.md](docs/PHASE_2_3_2.md) for draft-day release QA, [docs/PHASE_2_4.md](docs/PHASE_2_4.md) for ESPN ranking-file import, [docs/PHASE_2_5.md](docs/PHASE_2_5.md) for smarter recommendation logic, [docs/PHASE_3_1.md](docs/PHASE_3_1.md) for the weekly optimizer foundation, [docs/PHASE_3_2.md](docs/PHASE_3_2.md) for public ESPN league sync, [docs/PHASE_3_3.md](docs/PHASE_3_3.md) for live weekly player intelligence, [docs/PHASE_3_4.md](docs/PHASE_3_4.md) for smarter start/sit recommendations, [docs/PHASE_4_1.md](docs/PHASE_4_1.md) for the waiver wire foundation, [docs/PHASE_4_2.md](docs/PHASE_4_2.md) for verified waiver availability and claim strategy, and [docs/PHASE_4_3.md](docs/PHASE_4_3.md) for matchup-aware waiver recommendations.

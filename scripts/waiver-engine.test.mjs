@@ -179,3 +179,45 @@ test('priority strategy never invents a FAAB bid', () => {
   assert.equal(plan[1].role, 'backup')
   assert.equal(plan[1].backupFor, 1)
 })
+
+test('weekly context classifies immediate help, streamers, stashes, and unavailable players', () => {
+  const weekContext = {
+    week: 1,
+    teams: [
+      { team: 'FA', opponent: 'PHI', homeAway: 'away', gameStatus: 'scheduled' },
+    ],
+  }
+  const candidates = [
+    candidate('Immediate Receiver', 'WR', 320, 1),
+    candidate('Streaming Quarterback', 'QB', 300, 2),
+    candidate('Bye Week Runner', 'RB', 280, 3),
+    { ...candidate('Injured Receiver', 'WR', 340, 4), injuryStatus: 'Out' },
+  ]
+  candidates[2].nflTeam = 'DET'
+  const board = buildWaiverBoard(fullRoster, candidates, { weekContext })
+  const byName = new Map(board.map((item) => [item.candidate.name, item]))
+
+  assert.equal(byName.get('Immediate Receiver')?.recommendationType, 'start-now')
+  assert.equal(byName.get('Streaming Quarterback')?.recommendationType, 'streamer')
+  assert.equal(byName.get('Bye Week Runner')?.recommendationType, 'avoid')
+  assert.equal(byName.get('Bye Week Runner')?.gameStatus, 'bye')
+  assert.equal(byName.get('Injured Receiver')?.recommendationType, 'avoid')
+  assert.ok(byName.get('Immediate Receiver')?.reasons.some((reason) => reason.includes('Week 1')))
+})
+
+test('start-now targets receive a stronger FAAB recommendation than otherwise similar stashes', () => {
+  const board = buildWaiverBoard(fullRoster, [
+    candidate('Healthy Impact Receiver', 'WR', 320, 1),
+    { ...candidate('Risky Impact Receiver', 'WR', 320, 2), injuryStatus: 'Questionable' },
+  ], {
+    weekContext: {
+      week: 1,
+      teams: [{ team: 'FA', opponent: 'PHI', homeAway: 'home', gameStatus: 'scheduled' }],
+    },
+  })
+  const plan = buildClaimStrategy(board, board.map((item) => item.candidate.id), { mode: 'faab', budgetRemaining: 100 })
+  const healthy = plan.find((item) => item.recommendation.candidate.name === 'Healthy Impact Receiver')
+  const risky = plan.find((item) => item.recommendation.candidate.name === 'Risky Impact Receiver')
+
+  assert.ok((healthy?.bidPercent ?? 0) > (risky?.bidPercent ?? 0))
+})

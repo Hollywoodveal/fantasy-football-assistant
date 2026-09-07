@@ -16,6 +16,10 @@ import {
   parseEspnWaiverAvailability,
   validateWaiverAvailabilityInput,
 } from './features/waivers/waiverAvailability.ts'
+import {
+  parseWaiverWeekContext,
+  validateWaiverWeekContextInput,
+} from './features/waivers/waiverContext.ts'
 
 type AssetBinding = {
   fetch(request: Request): Promise<Response>
@@ -59,15 +63,19 @@ const LIVE_DATA_PATH = '/api/live-data'
 const ESPN_LEAGUE_PATH = '/api/espn/league'
 const ESPN_WEEKLY_PATH = '/api/espn/weekly-intelligence'
 const ESPN_WAIVER_PATH = '/api/espn/waiver-availability'
+const WAIVER_CONTEXT_PATH = '/api/nfl/waiver-context'
 const ESPN_CACHE_NAME = 'fantasy-assistant-espn-public-v1'
 const ESPN_WEEKLY_CACHE_NAME = 'fantasy-assistant-espn-weekly-v1'
 const ESPN_WAIVER_CACHE_NAME = 'fantasy-assistant-espn-waivers-v1'
+const WAIVER_CONTEXT_CACHE_NAME = 'fantasy-assistant-waiver-context-v1'
 const ESPN_EDGE_TTL_SECONDS = 300
 const ESPN_BROWSER_TTL_SECONDS = 60
 const ESPN_WEEKLY_EDGE_TTL_SECONDS = 900
 const ESPN_WEEKLY_BROWSER_TTL_SECONDS = 180
 const ESPN_WAIVER_EDGE_TTL_SECONDS = 60
 const ESPN_WAIVER_BROWSER_TTL_SECONDS = 30
+const WAIVER_CONTEXT_EDGE_TTL_SECONDS = 900
+const WAIVER_CONTEXT_BROWSER_TTL_SECONDS = 180
 
 const apiHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -445,6 +453,79 @@ async function handleEspnWeeklyIntelligence(request: Request, context: WorkerCon
   }
 }
 
+async function handleWaiverWeekContext(request: Request, context: WorkerContext) {
+  const requestUrl = new URL(request.url)
+  let input: { season: number; week: number }
+  try {
+    input = validateWaiverWeekContextInput(
+      requestUrl.searchParams.get('season'),
+      requestUrl.searchParams.get('week'),
+    )
+  } catch (error) {
+    return jsonResponse({
+      code: 'invalid_waiver_context',
+      message: error instanceof Error ? error.message : 'Choose a valid NFL season and week.',
+    }, 400, { 'Cache-Control': 'no-store' })
+  }
+
+  const cache = await caches.open(WAIVER_CONTEXT_CACHE_NAME)
+  const cacheUrl = new URL(WAIVER_CONTEXT_PATH, request.url)
+  cacheUrl.search = new URLSearchParams({ season: String(input.season), week: String(input.week) }).toString()
+  const cacheKey = new Request(cacheUrl, { method: 'GET' })
+  const cached = await cache.match(cacheKey)
+  if (cached) {
+    const headers = new Headers(cached.headers)
+    headers.set('Cache-Control', `public, max-age=${WAIVER_CONTEXT_BROWSER_TTL_SECONDS}`)
+    headers.set('X-Fantasy-Waiver-Context-Cache', 'HIT')
+    return new Response(cached.body, { status: cached.status, headers })
+  }
+
+  let providerResponse: Response
+  try {
+    providerResponse = await fetch(buildEspnScoreboardUrl(input.season, input.week), {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Fantasy-Assistant/0.1 (read-only waiver matchup context)',
+      },
+    })
+  } catch {
+    return jsonResponse({
+      code: 'waiver_context_unavailable',
+      message: 'Weekly matchup context is temporarily unavailable. Local waiver rankings remain active.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  if (!providerResponse.ok) {
+    return jsonResponse({
+      code: 'waiver_context_unavailable',
+      message: 'The NFL schedule provider is temporarily unavailable. Local waiver rankings remain active.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+
+  try {
+    const scoreboard = await providerResponse.json() as EspnScoreboardDocument
+    const payload = parseWaiverWeekContext(scoreboard, input)
+    const serialized = JSON.stringify(payload)
+    const cachedResponse = new Response(serialized, {
+      headers: { ...apiHeaders, 'Cache-Control': `public, max-age=${WAIVER_CONTEXT_EDGE_TTL_SECONDS}` },
+    })
+    context.waitUntil(cache.put(cacheKey, cachedResponse.clone()))
+    return new Response(serialized, {
+      headers: {
+        ...apiHeaders,
+        'Cache-Control': `public, max-age=${WAIVER_CONTEXT_BROWSER_TTL_SECONDS}`,
+        'X-Fantasy-Waiver-Context-Cache': 'MISS',
+      },
+    })
+  } catch (error) {
+    return jsonResponse({
+      code: 'waiver_context_invalid',
+      message: 'The NFL schedule response was incomplete. Local waiver rankings remain active.',
+      detail: error instanceof Error ? error.message : 'Unsupported NFL schedule response.',
+    }, 502, { 'Cache-Control': 'no-store' })
+  }
+}
+
 export default {
   async fetch(request: Request, environment: WorkerEnvironment, context: WorkerContext) {
     const url = new URL(request.url)
@@ -467,8 +548,12 @@ export default {
       if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
       return handleEspnWaiverAvailability(request, context)
     }
+    if (url.pathname === WAIVER_CONTEXT_PATH) {
+      if (request.method !== 'GET') return jsonResponse({ code: 'method_not_allowed', message: 'Only GET is supported.' }, 405, { Allow: 'GET' })
+      return handleWaiverWeekContext(request, context)
+    }
     if (url.pathname === '/api/health') {
-      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '4.2' }, 200, { 'Cache-Control': 'no-store' })
+      return jsonResponse({ status: 'ok', app: 'Fantasy Assistant', phase: '4.3' }, 200, { 'Cache-Control': 'no-store' })
     }
     if (url.pathname.startsWith('/api/')) return jsonResponse({ code: 'not_found', message: 'API route not found.' }, 404, { 'Cache-Control': 'no-store' })
     return environment.ASSETS.fetch(request)

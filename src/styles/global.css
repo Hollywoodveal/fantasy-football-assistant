@@ -3472,7 +3472,7 @@ textarea:focus-visible {
   .ranking-preview .primary-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
 }
 
-/* Phase 4.1–4.2 — waiver workspace, verification, and claim strategy */
+/* Phase 4.1–4.3 — waiver workspace, verification, claim strategy, and intelligence */
 .waiver-wire-page {
   width: min(100%, 1320px);
   margin: 0 auto;
@@ -3529,18 +3529,37 @@ textarea:focus-visible {
 .waiver-verification .secondary-action { min-height: 38px; padding-inline: 12px; font-size: 10px; }
 .waiver-verification .secondary-action:disabled { cursor: wait; opacity: .6; }
 
+.waiver-intelligence-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(100, 167, 255, .3);
+  border-radius: var(--radius-sm);
+  background: rgba(100, 167, 255, .06);
+  padding: 11px 14px;
+}
+.waiver-intelligence-status > svg { width: 18px; color: var(--blue); }
+.waiver-intelligence-status > div { display: grid; gap: 3px; }
+.waiver-intelligence-status strong { color: var(--text); font-size: 11px; }
+.waiver-intelligence-status span { color: var(--muted-strong); font-size: 9px; line-height: 1.45; }
+.waiver-intelligence-status--warning { border-color: rgba(246, 200, 95, .34); background: rgba(246, 200, 95, .07); }
+.waiver-intelligence-status--warning > svg { color: #f6c85f; }
+
 .waiver-feature { margin-bottom: 18px; border-color: rgba(184, 255, 57, .32); }
 .waiver-feature__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .waiver-feature__heading h2 { margin: 0; font-family: var(--display); font-size: 36px; font-weight: 650; letter-spacing: .012em; line-height: 1; text-transform: uppercase; }
 .waiver-feature__heading > div > span { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; }
 .waiver-feature__heading .secondary-action { min-height: 42px; flex: 0 0 auto; padding-inline: 14px; font-size: 11px; }
 .secondary-action--selected { border-color: rgba(184, 255, 57, .42); background: rgba(184, 255, 57, .1); color: var(--lime); }
-.waiver-feature__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 22px; border-block: 1px solid var(--border-soft); }
+.waiver-feature__metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 22px; border-block: 1px solid var(--border-soft); }
 .waiver-feature__metrics > div { display: grid; gap: 3px; padding: 16px 18px; }
 .waiver-feature__metrics > div + div { border-left: 1px solid var(--border-soft); }
 .waiver-feature__metrics span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .waiver-feature__metrics strong { color: var(--text); font-family: var(--display); font-size: 30px; font-weight: 650; }
 .waiver-feature__metrics strong.gain { color: var(--lime); }
+.waiver-feature__metrics > div:last-child strong { font-size: 23px; }
 .waiver-feature__metrics small { color: var(--muted); font-size: 9px; text-transform: capitalize; }
 .waiver-feature__decision { display: grid; grid-template-columns: minmax(260px, .72fr) minmax(0, 1fr); gap: 22px; margin-top: 18px; }
 .waiver-feature__decision ul { display: grid; align-content: center; gap: 6px; margin: 0; padding-left: 18px; color: var(--muted-strong); font-size: 10px; line-height: 1.45; }
@@ -3585,6 +3604,25 @@ textarea:focus-visible {
 .waiver-claim-empty strong { color: var(--text); font-size: 11px; }
 .waiver-claim-empty span { color: var(--muted); font-size: 9px; }
 
+.waiver-comparison { margin-bottom: 18px; }
+.waiver-comparison .panel__heading h2 { font-size: 28px; }
+.waiver-comparison .panel__heading p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+.waiver-comparison__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.waiver-comparison__card { position: relative; border: 1px solid var(--border-soft); border-radius: 11px; background: rgba(255, 255, 255, .025); padding: 16px; }
+.waiver-comparison__card > button { position: absolute; top: 10px; right: 10px; display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.waiver-comparison__card > button:hover { background: rgba(255, 255, 255, .05); color: var(--text); }
+.waiver-comparison__card > button svg { width: 15px; }
+.waiver-comparison__card h3 { margin: 12px 38px 0 0; color: var(--text); font-family: var(--display); font-size: 23px; font-weight: 650; text-transform: uppercase; }
+.waiver-comparison__card > p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
+.waiver-comparison__card dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 15px 0 0; overflow: hidden; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--border-soft); }
+.waiver-comparison__card dl > div { display: grid; gap: 4px; background: var(--surface); padding: 10px; }
+.waiver-comparison__card dt { color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.waiver-comparison__card dd { margin: 0; color: var(--text); font-family: var(--display); font-size: 18px; font-weight: 650; text-transform: capitalize; }
+.waiver-comparison__card dd.gain { color: var(--lime); }
+.waiver-comparison__empty { display: flex; min-height: 92px; align-items: center; justify-content: center; gap: 9px; margin-top: 18px; border: 1px dashed var(--border-soft); border-radius: 11px; color: var(--muted); font-size: 10px; text-align: center; }
+.waiver-comparison__grid .waiver-comparison__empty { margin-top: 0; }
+.waiver-comparison__empty svg { width: 18px; color: var(--blue); }
+
 .waiver-board .panel__heading > div { min-width: 0; }
 .waiver-board .panel__heading h2 { font-size: 28px; }
 .waiver-board .panel__heading p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
@@ -3599,7 +3637,7 @@ textarea:focus-visible {
 .waiver-upgrades { display: flex; min-height: 43px; align-items: center; gap: 8px; border: 1px solid var(--border-soft); border-radius: 9px; padding: 0 12px; color: var(--muted-strong); cursor: pointer; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .waiver-upgrades input { accent-color: var(--lime); }
 .waiver-candidate-list { display: grid; margin-top: 16px; border-top: 1px solid var(--border-soft); }
-.waiver-candidate { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; border-bottom: 1px solid var(--border-soft); transition: background .18s ease; }
+.waiver-candidate { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; border-bottom: 1px solid var(--border-soft); transition: background .18s ease; }
 .waiver-candidate:hover,
 .waiver-candidate--active { background: rgba(184, 255, 57, .045); }
 .waiver-candidate--active { box-shadow: inset 3px 0 0 var(--lime); }
@@ -3618,6 +3656,10 @@ textarea:focus-visible {
 .waiver-target-button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--border-soft); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
 .waiver-target-button svg { width: 15px; }
 .waiver-target-button--active { border-color: rgba(184, 255, 57, .38); background: rgba(184, 255, 57, .08); color: var(--lime); }
+.waiver-candidate__actions { display: flex; align-items: center; gap: 5px; }
+.waiver-compare-button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--border-soft); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.waiver-compare-button svg { width: 15px; }
+.waiver-compare-button--active { border-color: rgba(100, 167, 255, .42); background: rgba(100, 167, 255, .1); color: var(--blue); }
 .waiver-empty { display: flex; align-items: center; gap: 10px; padding: 28px 10px; color: var(--muted); font-size: 11px; }
 .waiver-empty svg { width: 18px; color: var(--lime); }
 .waiver-empty p,
@@ -3634,6 +3676,8 @@ textarea:focus-visible {
 .light-mode .waiver-candidate__rank,
 .light-mode .waiver-candidate__swap strong.gain { color: #3f6212; }
 .light-mode .waiver-priority--upgrade { color: #1d4ed8; }
+.light-mode .waiver-comparison__card { background: rgba(15, 23, 42, .025); }
+.light-mode .waiver-comparison__card dl > div { background: rgba(255, 255, 255, .92); }
 .light-mode .waiver-claim__order,
 .light-mode .waiver-claim__role { color: #3f6212; }
 .light-mode .waiver-claim__role--backup { color: #1d4ed8; }
@@ -3650,7 +3694,8 @@ textarea:focus-visible {
   .waiver-feature__heading { flex-direction: column; }
   .waiver-feature__heading .secondary-action { width: 100%; justify-content: center; }
   .waiver-feature__metrics { grid-template-columns: 1fr 1fr; }
-  .waiver-feature__metrics > div:nth-child(3) { grid-column: 1 / -1; border-top: 1px solid var(--border-soft); border-left: 0; }
+  .waiver-feature__metrics > div:nth-child(3) { border-top: 1px solid var(--border-soft); border-left: 0; }
+  .waiver-feature__metrics > div:nth-child(4) { border-top: 1px solid var(--border-soft); }
   .waiver-feature__decision { grid-template-columns: 1fr; }
   .waiver-verification { grid-template-columns: auto minmax(0, 1fr); }
   .waiver-verification .secondary-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
@@ -3660,6 +3705,8 @@ textarea:focus-visible {
   .waiver-claim__role { grid-column: 3; grid-row: 1; }
   .waiver-claim__strategy { grid-column: 2 / -1; }
   .waiver-claim__remove { grid-column: 3; grid-row: 2; }
+  .waiver-comparison__grid { grid-template-columns: 1fr; }
+  .waiver-comparison__card dl { grid-template-columns: 1fr 1fr; }
   .waiver-tools { grid-template-columns: 1fr 1fr; }
   .waiver-search { grid-column: 1 / -1; }
   .waiver-candidate__select { grid-template-columns: 26px 34px minmax(0, 1fr) auto; gap: 7px; padding-inline: 8px; }
@@ -3683,6 +3730,7 @@ textarea:focus-visible {
   .waiver-tools { grid-template-columns: 1fr; }
   .waiver-search { grid-column: auto; }
   .waiver-candidate { grid-template-columns: minmax(0, 1fr) 36px; }
+  .waiver-candidate__actions { flex-direction: column; }
   .waiver-candidate__select { grid-template-columns: 25px 32px minmax(0, 1fr); }
   .waiver-priority { grid-column: 3; justify-self: start; }
   .waiver-candidate__swap { grid-column: 3; }

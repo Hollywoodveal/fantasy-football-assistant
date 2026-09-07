@@ -105,7 +105,7 @@ export type EspnScoreboardDocument = {
   }>
 }
 
-type TeamGame = {
+export type TeamGame = {
   opponent: string
   homeAway: 'home' | 'away'
   kickoff?: string
