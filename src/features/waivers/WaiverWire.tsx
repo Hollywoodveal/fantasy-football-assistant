@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Check,
   ClipboardList,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react'
 import { loadDraftDataSet, saveDraftDataSet } from '../draft/dataStorage'
 import { liveDataNeedsRefresh, refreshLivePlayerData } from '../draft/liveData'
+import type { EspnRosterRefresh } from '../league/espnSync'
 import type { LeagueProfile } from '../league/types'
 import { parseRosterText, sampleRosterText } from '../league/rosterParser'
 import {
@@ -39,7 +41,19 @@ import {
   type WaiverAvailabilityInput,
   type WaiverAvailabilityResponse,
 } from './waiverAvailability'
-import { loadWaiverShortlist, saveWaiverShortlist } from './storage'
+import {
+  loadWaiverHistory,
+  loadWaiverShortlist,
+  saveWaiverHistory,
+  saveWaiverShortlist,
+  upsertWaiverHistory,
+} from './storage'
+import {
+  markWaiverClaimSkipped,
+  mergeContinuityRecord,
+  reconcileWaiverResults,
+  type WaiverClaimSnapshot,
+} from './waiverContinuity'
 import {
   fetchWaiverWeekContext,
   loadWaiverWeekContext,
@@ -54,6 +68,9 @@ type WaiverWireProps = {
   week: string
   onBack: () => void
   onManageRoster: () => void
+  onOpenLineup: () => void
+  onRefreshRoster: () => Promise<EspnRosterRefresh>
+  isRosterRefreshing: boolean
   onToast: (message: string) => void
 }
 
@@ -175,7 +192,23 @@ function RecommendationCard({
   )
 }
 
-export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: WaiverWireProps) {
+function outcomeLabel(status: WaiverClaimSnapshot['status']) {
+  if (status === 'won') return 'Won'
+  if (status === 'lost') return 'Lost'
+  if (status === 'skipped') return 'Skipped'
+  return 'Pending'
+}
+
+export function WaiverWire({
+  profile,
+  week,
+  onBack,
+  onManageRoster,
+  onOpenLineup,
+  onRefreshRoster,
+  isRosterRefreshing,
+  onToast,
+}: WaiverWireProps) {
   const roster = profile?.roster ?? previewRoster
   const [dataSet, setDataSet] = useState(loadDraftDataSet)
   const [search, setSearch] = useState('')
@@ -190,6 +223,9 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
   const [weekContextError, setWeekContextError] = useState('')
   const [isWeekContextLoading, setIsWeekContextLoading] = useState(false)
   const [compareIds, setCompareIds] = useState<string[]>([])
+  const [history, setHistory] = useState(loadWaiverHistory)
+  const [isReconciling, setIsReconciling] = useState(false)
+  const [reconciliationError, setReconciliationError] = useState('')
   const weekNumber = Number(week.replace(/[^0-9]/g, '')) || 1
   const weekContextInput = useMemo(() => ({ season: profile?.season ?? dataSet.season, week: weekNumber }), [dataSet.season, profile?.season, weekNumber])
   const availabilityInput = useMemo<WaiverAvailabilityInput | null>(() => profile?.sync ? ({
@@ -307,6 +343,11 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
     () => buildClaimStrategy(board, shortlist, currentAvailability?.claimRules),
     [board, currentAvailability?.claimRules, shortlist],
   )
+  const continuityId = profile?.sync ? `${profile.leagueId}:${profile.season}:${weekNumber}` : ''
+  const currentContinuity = history.find((record) => record.id === continuityId)
+  const leagueHistory = profile?.sync
+    ? history.filter((record) => record.leagueId === profile.leagueId && record.teamId === profile.sync?.teamId).slice(0, 4)
+    : []
   const comparisons = useMemo(
     () => compareIds.flatMap((id) => {
       const recommendation = board.find((item) => item.candidate.id === id)
@@ -353,14 +394,91 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
     })
   }
 
+  const reconcileResults = async () => {
+    if (!profile?.sync) {
+      onManageRoster()
+      return
+    }
+    setIsReconciling(true)
+    setReconciliationError('')
+    const plannedClaims = claimPlan
+    const previousAvailability = currentAvailability
+    try {
+      const refresh = await onRefreshRoster()
+      const nextInput = {
+        leagueId: refresh.profile.leagueId,
+        season: refresh.profile.season,
+        teamId: refresh.profile.sync?.teamId ?? profile.sync.teamId,
+      }
+      let refreshedAvailability: WaiverAvailabilityResponse | null = null
+      try {
+        refreshedAvailability = await fetchWaiverAvailability(nextInput, undefined, true)
+        setAvailability(refreshedAvailability)
+        setAvailabilityError('')
+        if (!saveWaiverAvailability(refreshedAvailability)) {
+          onToast('Roster results loaded, but ESPN availability could not be saved in this browser.')
+        }
+      } catch (error) {
+        setAvailabilityError(error instanceof Error ? error.message : 'League-wide claim results could not be verified.')
+      }
+
+      const syncedAt = refreshedAvailability?.refreshedAt
+        ?? refresh.profile.sync?.lastSyncedAt
+        ?? refresh.profile.importedAt
+      const record = mergeContinuityRecord(currentContinuity, reconcileWaiverResults({
+        leagueId: refresh.profile.leagueId,
+        teamId: nextInput.teamId,
+        season: refresh.profile.season,
+        week: weekNumber,
+        syncedAt,
+        previousRoster: refresh.previousProfile.roster,
+        currentRoster: refresh.profile.roster,
+        claimPlan: plannedClaims,
+        rosteredPlayers: refreshedAvailability?.rosteredPlayers,
+        previousFaabRemaining: previousAvailability?.claimRules.budgetRemaining,
+        currentFaabRemaining: refreshedAvailability?.claimRules.budgetRemaining,
+      }))
+      const nextHistory = upsertWaiverHistory(history, record)
+      if (!saveWaiverHistory(nextHistory)) throw new Error('Results were reconciled, but waiver history could not be saved in this browser.')
+      const resolvedIds = new Set(record.claims.filter((claim) => claim.status !== 'pending').map((claim) => claim.playerId))
+      const remainingShortlist = shortlist.filter((id) => !resolvedIds.has(id))
+      if (!saveWaiverShortlist(remainingShortlist)) throw new Error('Results were reconciled, but the claim plan could not be updated in this browser.')
+      setHistory(nextHistory)
+      setShortlist(remainingShortlist)
+      const resolvedCount = record.claims.filter((claim) => claim.status !== 'pending').length
+      const rosterMoveCount = record.added.length + record.dropped.length
+      onToast(rosterMoveCount
+        ? `${rosterMoveCount} ESPN roster change${rosterMoveCount === 1 ? '' : 's'} detected. Lineup recommendations refreshed.`
+        : `${resolvedCount ? `${resolvedCount} claim result${resolvedCount === 1 ? '' : 's'} reconciled. ` : ''}No new ESPN roster changes detected.`)
+    } catch (error) {
+      setReconciliationError(error instanceof Error ? error.message : 'ESPN roster results could not be reconciled. Your saved history is unchanged.')
+    } finally {
+      setIsReconciling(false)
+    }
+  }
+
+  const skipPendingClaim = (playerId: string) => {
+    if (!currentContinuity) return
+    const record = markWaiverClaimSkipped(currentContinuity, playerId)
+    const nextHistory = upsertWaiverHistory(history, record)
+    const nextShortlist = shortlist.filter((id) => id !== playerId)
+    if (!saveWaiverHistory(nextHistory) || !saveWaiverShortlist(nextShortlist)) {
+      onToast('The claim outcome could not be saved in this browser.')
+      return
+    }
+    setHistory(nextHistory)
+    setShortlist(nextShortlist)
+    onToast('Claim marked skipped and removed from the active plan.')
+  }
+
   return (
     <div className="waiver-wire-page">
       <header className="waiver-wire__hero">
         <button className="back-action" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back to dashboard</button>
         <div className="waiver-wire__hero-copy">
-          <p className="lineup-optimizer__eyebrow">Phase 4.3 · Smarter Waiver Recommendations</p>
+          <p className="lineup-optimizer__eyebrow">Phase 4.4 · Waiver Results &amp; Roster Continuity</p>
           <h1>Find your next roster upgrade</h1>
-          <p>Separate immediate starters from streamers and stashes, compare add/drop value, and build a smarter claim strategy for {week}.</p>
+          <p>Plan smarter claims, detect completed ESPN roster moves, and carry every successful addition into updated lineup recommendations for {week}.</p>
         </div>
         <div className="lineup-optimizer__source" aria-label="Waiver candidate data source">
           <ClipboardList aria-hidden="true" />
@@ -417,6 +535,76 @@ export function WaiverWire({ profile, week, onBack, onManageRoster, onToast }: W
           <span>A verified label means the player was absent from every roster in the latest public ESPN snapshot—not that waivers have cleared. Recheck ESPN before submitting; this app never submits adds, drops, bids, or claims.</span>
         </div>
       </div>
+
+      <section className="waiver-continuity panel" aria-labelledby="waiver-continuity-title">
+        <div className="panel__heading panel__heading--row">
+          <span className="section-icon section-icon--lime"><RefreshCw aria-hidden="true" /></span>
+          <div>
+            <h2 id="waiver-continuity-title">Waiver results &amp; roster continuity</h2>
+            <p>Refresh after ESPN processes waivers to detect adds, drops, and planned-claim outcomes.</p>
+          </div>
+          {profile?.sync ? (
+            <button className="secondary-action" type="button" onClick={reconcileResults} disabled={isReconciling || isRosterRefreshing}>
+              <RefreshCw className={isReconciling || isRosterRefreshing ? 'is-spinning' : ''} aria-hidden="true" />
+              {isReconciling || isRosterRefreshing ? 'Syncing results…' : 'Sync results from ESPN'}
+            </button>
+          ) : (
+            <button className="secondary-action" type="button" onClick={onManageRoster}>Connect ESPN</button>
+          )}
+        </div>
+
+        {reconciliationError && <div className="waiver-continuity__error" role="alert"><TriangleAlert aria-hidden="true" /><span>{reconciliationError}</span></div>}
+
+        {!profile?.sync ? (
+          <div className="waiver-continuity__empty">
+            <Info aria-hidden="true" />
+            <p><strong>ESPN roster sync is required.</strong><span>Connect a public league to compare your saved roster with ESPN after waivers process.</span></p>
+          </div>
+        ) : currentContinuity ? (
+          <>
+            <div className="waiver-continuity__summary">
+              <div><span>Players added</span><strong>{currentContinuity.added.length}</strong><small>{currentContinuity.added.map((player) => player.name).join(', ') || 'No additions detected'}</small></div>
+              <div><span>Players dropped</span><strong>{currentContinuity.dropped.length}</strong><small>{currentContinuity.dropped.map((player) => player.name).join(', ') || 'No drops detected'}</small></div>
+              <div><span>Claim outcomes</span><strong>{currentContinuity.claims.filter((claim) => claim.status !== 'pending').length}/{currentContinuity.claims.length}</strong><small>{currentContinuity.verification === 'all-rosters' ? 'Checked across every ESPN roster' : 'Selected roster only'}</small></div>
+              <div><span>Lineup continuity</span><strong>{currentContinuity.lineupRefreshRequired ? 'Updated' : 'Current'}</strong><small>{currentContinuity.faabSpent ? `$${currentContinuity.faabSpent} FAAB change detected` : `Synced ${formatAvailabilityTime(currentContinuity.syncedAt)}`}</small></div>
+            </div>
+
+            {currentContinuity.claims.length ? (
+              <div className="waiver-outcome-list" aria-label={`${week} waiver claim outcomes`}>
+                {currentContinuity.claims.map((claim) => (
+                  <article className="waiver-outcome" key={claim.playerId}>
+                    <span className="waiver-outcome__order">{claim.order}</span>
+                    <div><strong>{claim.name}</strong><small>Add {claim.position} · {claim.dropName ? `planned drop ${claim.dropName}` : 'no drop planned'}</small></div>
+                    <span className={`waiver-outcome__status waiver-outcome__status--${claim.status}`}>{outcomeLabel(claim.status)}</span>
+                    {claim.status === 'pending' && <button type="button" onClick={() => skipPendingClaim(claim.playerId)}>Mark skipped</button>}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="waiver-continuity__empty"><Check aria-hidden="true" /><p><strong>Roster sync complete.</strong><span>No planned claims were waiting for an outcome.</span></p></div>
+            )}
+
+            <div className="waiver-continuity__actions">
+              <span><Clock3 aria-hidden="true" /> Saved locally for {week}</span>
+              <button className="plain-action" type="button" onClick={onOpenLineup}>Open updated lineup <ArrowRight aria-hidden="true" /></button>
+            </div>
+          </>
+        ) : (
+          <div className="waiver-continuity__empty">
+            <Clock3 aria-hidden="true" />
+            <p><strong>No {week} result sync yet.</strong><span>After ESPN processes waivers, refresh here to update the roster, resolve claims, and recalculate the lineup.</span></p>
+          </div>
+        )}
+
+        {leagueHistory.length > 1 && (
+          <div className="waiver-history" aria-label="Recent waiver sync history">
+            <strong>Recent history</strong>
+            {leagueHistory.map((record) => (
+              <span key={record.id}>Week {record.week}<small>{record.added.length} added · {record.dropped.length} dropped · {record.claims.filter((claim) => claim.status === 'won').length} won</small></span>
+            ))}
+          </div>
+        )}
+      </section>
 
       {selected && (
         <section className="waiver-feature panel" aria-label="Top waiver recommendation">

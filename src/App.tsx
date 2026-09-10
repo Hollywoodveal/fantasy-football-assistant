@@ -22,7 +22,7 @@ import { BottomNavigation, SideNavigation, type NavKey } from './components/Navi
 import { lineupMoves } from './data/demo'
 import { LeagueSetupDialog } from './features/league/LeagueSetupDialog'
 import { LeagueStatus } from './features/league/LeagueStatus'
-import { fetchPublicEspnLeague, profileFromEspnLeague } from './features/league/espnSync'
+import { refreshEspnProfile, type EspnRosterRefresh } from './features/league/espnSync'
 import { loadLeagueProfile, saveLeagueProfile } from './features/league/storage'
 import type { LeagueProfile } from './features/league/types'
 import { DraftAssistant } from './features/draft/DraftAssistant'
@@ -178,25 +178,31 @@ function App() {
     setToast(`${profile.roster.length} ESPN roster players saved on this device.`)
   }
 
+  const refreshLeagueProfile = async (): Promise<EspnRosterRefresh> => {
+    if (!leagueProfile?.sync) {
+      throw new Error('Connect a public ESPN league before refreshing the roster.')
+    }
+    setLeagueSyncing(true)
+    try {
+      const result = await refreshEspnProfile(leagueProfile)
+      if (!saveLeagueProfile(result.profile)) throw new Error('ESPN refreshed, but this browser could not save the updated roster.')
+      setLeagueProfile(result.profile)
+      return result
+    } finally {
+      setLeagueSyncing(false)
+    }
+  }
+
   const refreshLeague = async () => {
     if (!leagueProfile?.sync) {
       openLeagueSetup()
       return
     }
-    setLeagueSyncing(true)
     try {
-      const result = await fetchPublicEspnLeague(leagueProfile.leagueId, leagueProfile.season)
-      const refreshedProfile = profileFromEspnLeague(result, leagueProfile.sync.teamId)
-      if (!saveLeagueProfile(refreshedProfile)) {
-        setToast('ESPN refreshed, but this browser could not save the updated roster.')
-        return
-      }
-      setLeagueProfile(refreshedProfile)
-      setToast(`${refreshedProfile.roster.length} ESPN players refreshed. No ESPN changes were made.`)
+      const result = await refreshLeagueProfile()
+      setToast(`${result.profile.roster.length} ESPN players refreshed. No ESPN changes were made.`)
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'ESPN refresh failed. Your saved roster is unchanged.')
-    } finally {
-      setLeagueSyncing(false)
     }
   }
 
@@ -261,6 +267,9 @@ function App() {
             week={week}
             onBack={() => navigate('home')}
             onManageRoster={openLeagueSetup}
+            onOpenLineup={() => navigate('lineup')}
+            onRefreshRoster={refreshLeagueProfile}
+            isRosterRefreshing={leagueSyncing}
             onToast={setToast}
           />
         ) : (

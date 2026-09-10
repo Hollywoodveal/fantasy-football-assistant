@@ -3472,7 +3472,7 @@ textarea:focus-visible {
   .ranking-preview .primary-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
 }
 
-/* Phase 4.1–4.3 — waiver workspace, verification, claim strategy, and intelligence */
+/* Phase 4.1–4.4 — waiver workspace, verification, claim strategy, intelligence, and roster continuity */
 .waiver-wire-page {
   width: min(100%, 1320px);
   margin: 0 auto;
@@ -3505,6 +3505,47 @@ textarea:focus-visible {
 .waiver-boundary > div { display: grid; gap: 3px; }
 .waiver-boundary strong { color: var(--text); font-size: 12px; }
 .waiver-boundary span { color: var(--muted-strong); font-size: 10px; line-height: 1.5; }
+
+.waiver-continuity { margin-bottom: 18px; border-color: rgba(100, 167, 255, .3); }
+.waiver-continuity .panel__heading > div { min-width: 0; }
+.waiver-continuity .panel__heading h2 { font-size: 28px; }
+.waiver-continuity .panel__heading p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+.waiver-continuity .panel__heading .secondary-action { margin-left: auto; min-height: 40px; flex: 0 0 auto; padding-inline: 13px; font-size: 10px; }
+.waiver-continuity .panel__heading .secondary-action:disabled { cursor: wait; opacity: .62; }
+.waiver-continuity__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 18px; overflow: hidden; border: 1px solid var(--border-soft); border-radius: 11px; }
+.waiver-continuity__summary > div { display: grid; min-width: 0; gap: 4px; padding: 14px 15px; }
+.waiver-continuity__summary > div + div { border-left: 1px solid var(--border-soft); }
+.waiver-continuity__summary span { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.waiver-continuity__summary strong { color: var(--text); font-family: var(--display); font-size: 25px; font-weight: 650; text-transform: uppercase; }
+.waiver-continuity__summary small { overflow: hidden; color: var(--muted-strong); font-size: 8px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.waiver-continuity__empty { display: flex; align-items: center; gap: 11px; margin-top: 18px; border: 1px dashed var(--border-soft); border-radius: 10px; padding: 16px; }
+.waiver-continuity__empty > svg { width: 19px; flex: 0 0 auto; color: var(--blue); }
+.waiver-continuity__empty p { display: grid; gap: 3px; margin: 0; }
+.waiver-continuity__empty strong { color: var(--text); font-size: 11px; }
+.waiver-continuity__empty span { color: var(--muted); font-size: 9px; line-height: 1.45; }
+.waiver-continuity__error { display: flex; align-items: center; gap: 9px; margin-top: 15px; border: 1px solid rgba(246, 200, 95, .34); border-radius: 9px; background: rgba(246, 200, 95, .07); padding: 10px 12px; color: var(--muted-strong); font-size: 9px; }
+.waiver-continuity__error svg { width: 16px; flex: 0 0 auto; color: #f6c85f; }
+.waiver-outcome-list { display: grid; margin-top: 14px; border-top: 1px solid var(--border-soft); }
+.waiver-outcome { display: grid; grid-template-columns: 32px minmax(170px, 1fr) 76px auto; align-items: center; gap: 10px; min-height: 62px; border-bottom: 1px solid var(--border-soft); padding: 8px; }
+.waiver-outcome__order { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: rgba(100, 167, 255, .1); color: var(--blue); font-family: var(--display); font-size: 17px; font-weight: 700; }
+.waiver-outcome > div { display: grid; min-width: 0; gap: 3px; }
+.waiver-outcome > div strong { overflow: hidden; color: var(--text); font-family: var(--display); font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.waiver-outcome > div small { color: var(--muted); font-size: 8px; }
+.waiver-outcome__status { justify-self: start; border: 1px solid var(--border-soft); border-radius: 999px; padding: 4px 8px; color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.waiver-outcome__status--won { border-color: rgba(184, 255, 57, .36); background: rgba(184, 255, 57, .07); color: var(--lime); }
+.waiver-outcome__status--lost { border-color: rgba(255, 107, 107, .35); background: rgba(255, 107, 107, .07); color: #ff8f8f; }
+.waiver-outcome__status--skipped { border-color: rgba(246, 200, 95, .34); background: rgba(246, 200, 95, .07); color: #f6c85f; }
+.waiver-outcome > button { border: 0; background: transparent; padding: 8px; color: var(--muted); cursor: pointer; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.waiver-outcome > button:hover { color: #f6c85f; }
+.waiver-continuity__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.waiver-continuity__actions > span { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 8px; font-weight: 700; text-transform: uppercase; }
+.waiver-continuity__actions > span svg { width: 14px; color: var(--blue); }
+.waiver-continuity__actions .plain-action { display: inline-flex; align-items: center; gap: 6px; }
+.waiver-continuity__actions .plain-action svg { width: 14px; }
+.waiver-history { display: flex; align-items: center; gap: 9px; margin-top: 14px; overflow-x: auto; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+.waiver-history > strong { flex: 0 0 auto; color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.waiver-history > span { display: grid; min-width: 122px; gap: 2px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 7px 9px; color: var(--text); font-size: 9px; font-weight: 800; }
+.waiver-history small { color: var(--muted); font-size: 7px; font-weight: 500; white-space: nowrap; }
 
 .waiver-verification {
   display: grid;
@@ -3681,6 +3722,9 @@ textarea:focus-visible {
 .light-mode .waiver-claim__order,
 .light-mode .waiver-claim__role { color: #3f6212; }
 .light-mode .waiver-claim__role--backup { color: #1d4ed8; }
+.light-mode .waiver-outcome__status--won { color: #3f6212; }
+.light-mode .waiver-outcome__status--lost { color: #b91c1c; }
+.light-mode .waiver-outcome__status--skipped { color: #92400e; }
 .light-mode .back-action,
 .light-mode .top-bar .league-select,
 .light-mode .top-bar .week-select select { color: #edf4fa; }
@@ -3699,6 +3743,11 @@ textarea:focus-visible {
   .waiver-feature__decision { grid-template-columns: 1fr; }
   .waiver-verification { grid-template-columns: auto minmax(0, 1fr); }
   .waiver-verification .secondary-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
+  .waiver-continuity .panel__heading { flex-wrap: wrap; }
+  .waiver-continuity .panel__heading .secondary-action { width: 100%; margin-left: 0; justify-content: center; }
+  .waiver-continuity__summary { grid-template-columns: 1fr 1fr; }
+  .waiver-continuity__summary > div:nth-child(3) { border-top: 1px solid var(--border-soft); border-left: 0; }
+  .waiver-continuity__summary > div:nth-child(4) { border-top: 1px solid var(--border-soft); }
   .waiver-claim-plan .panel__heading { flex-wrap: wrap; }
   .waiver-claim-plan .panel__heading .secondary-action { width: 100%; margin-left: 0; justify-content: center; }
   .waiver-claim { grid-template-columns: 30px minmax(0, 1fr) auto; gap: 8px; }
@@ -3723,6 +3772,11 @@ textarea:focus-visible {
   .waiver-verification { grid-template-columns: 1fr; }
   .waiver-verification__icon { display: none; }
   .waiver-verification .secondary-action { grid-column: auto; }
+  .waiver-continuity__summary { grid-template-columns: 1fr; }
+  .waiver-continuity__summary > div + div { border-top: 1px solid var(--border-soft); border-left: 0; }
+  .waiver-outcome { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .waiver-outcome > button { grid-column: 2 / -1; justify-self: start; padding-left: 0; }
+  .waiver-continuity__actions { align-items: flex-start; flex-direction: column; }
   .waiver-claim { grid-template-columns: 28px minmax(0, 1fr); }
   .waiver-claim__role { grid-column: 2; grid-row: auto; }
   .waiver-claim__strategy { grid-column: 2; }

@@ -74,6 +74,11 @@ export type EspnLeagueSync = {
   syncedAt: string
 }
 
+export type EspnRosterRefresh = {
+  previousProfile: LeagueProfile
+  profile: LeagueProfile
+}
+
 const positionById: Partial<Record<number, PlayerPosition>> = {
   1: 'QB',
   2: 'RB',
@@ -243,4 +248,13 @@ export async function fetchPublicEspnLeague(leagueId: string, season: number): P
   const body = await response.json().catch(() => null) as EspnLeagueSync | { message?: string } | null
   if (!response.ok) throw new Error(body && 'message' in body && body.message ? body.message : 'ESPN league sync failed. Try manual import instead.')
   return body as EspnLeagueSync
+}
+
+export async function refreshEspnProfile(profile: LeagueProfile): Promise<EspnRosterRefresh> {
+  if (!profile.sync) throw new Error('Connect a public ESPN league before refreshing roster results.')
+  const league = await fetchPublicEspnLeague(profile.leagueId, profile.season)
+  return {
+    previousProfile: profile,
+    profile: profileFromEspnLeague(league, profile.sync.teamId),
+  }
 }
